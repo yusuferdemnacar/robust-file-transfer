@@ -1,0 +1,8 @@
+assignment: rft
+tasks:
+  - title: command line interface
+    features:
+      - arguments.feature
+  - title: basic functionality
+    features:
+      - connect.feature
