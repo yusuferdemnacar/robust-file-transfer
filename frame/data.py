@@ -8,21 +8,22 @@ class DataFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('!BHI6sH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, length: int) -> None:
+        def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int) -> None:
             self.type = type
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.offset = offset
-            self.length = length
+            self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHI6sH', self.type, self.stream_id, self.frame_id, self.offset, self.length)
+            return struct.pack('!BHI6sH', self.type, self.stream_id, self.frame_id, self.offset, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'DataFrame.Header':
-            type, stream_id, frame_id,  offset, length = struct.unpack(
+            type, stream_id, frame_id,  offset, payload_length = struct.unpack(
                 '!BHI6sH', header_bytes)
-            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'big'), length)
+            print(payload_length)
+            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'big'), payload_length)
 
     class Payload(Frame.Payload):
 
@@ -39,9 +40,9 @@ class DataFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload: str) -> None:
+    def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, offset, len(payload))
+            type, stream_id, frame_id, offset, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -54,4 +55,4 @@ class DataFrame(Frame):
     def unpack(cls, frame_bytes: bytes) -> 'DataFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
         payload = cls.Payload.unpack(frame_bytes[cls.Header.size:])
-        return cls(header.type, header.stream_id, header.frame_id, header.offset, payload.data)
+        return cls(header.type, header.stream_id, header.frame_id, header.offset, header.payload_length, payload.data)
