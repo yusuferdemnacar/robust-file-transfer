@@ -27,18 +27,18 @@ class DataFrame(Frame):
 
     class Payload(Frame.Payload):
 
-        def __init__(self, payload: str) -> None:
+        def __init__(self, payload: bytes) -> None:
             self.data = payload
 
         def __len__(self) -> int:
             return len(self.data)
 
         def pack(self) -> bytes:
-            return bytes(self.data, 'utf-8')
+            return self.data
 
         @classmethod
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
-            return cls(str(payload_bytes, 'utf-8'))
+            return cls(payload_bytes)
 
     def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
