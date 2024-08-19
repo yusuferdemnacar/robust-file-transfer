@@ -142,21 +142,21 @@ class AnswerFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('!BHIIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, length: int) -> None:
+        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
             self.type = type
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.command_frame_id = command_frame_id
-            self.length = length
+            self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.length)
+            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'AnswerFrame.Header':
-            type, stream_id, frame_id, command_frame_id, length = struct.unpack(
+            type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
                 '!BHIIH', header_bytes)
-            return cls(type, stream_id, frame_id, command_frame_id, length)
+            return cls(type, stream_id, frame_id, command_frame_id, payload_length)
 
     class Payload(Frame.Payload):
 
@@ -197,21 +197,21 @@ class ErrorFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('!BHIIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, length: int) -> None:
+        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
             self.type = type
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.command_frame_id = command_frame_id
-            self.length = length
+            self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.length)
+            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ErrorFrame.Header':
-            type, stream_id, frame_id, command_frame_id, length = struct.unpack(
+            type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
                 '!BHIIH', header_bytes)
-            return cls(type, stream_id, frame_id, command_frame_id, length)
+            return cls(type, stream_id, frame_id, command_frame_id, payload_length)
 
     class Payload(Frame.Payload):
 
