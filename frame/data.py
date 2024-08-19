@@ -6,7 +6,7 @@ class DataFrame(Frame):
     type = 6
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHI6sH')
+        size = struct.calcsize('<BHI6sH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int) -> None:
             self.type = type
@@ -16,14 +16,13 @@ class DataFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHI6sH', self.type, self.stream_id, self.frame_id, int.to_bytes(self.offset, 6, 'big'), self.payload_length)
+            return struct.pack('<BHI6sH', self.type, self.stream_id, self.frame_id, int.to_bytes(self.offset, 6, 'little'), self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'DataFrame.Header':
             type, stream_id, frame_id,  offset, payload_length = struct.unpack(
-                '!BHI6sH', header_bytes)
-            print(payload_length)
-            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'big'), payload_length)
+                '<BHI6sH', header_bytes)
+            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'little'), payload_length)
 
     class Payload(Frame.Payload):
 

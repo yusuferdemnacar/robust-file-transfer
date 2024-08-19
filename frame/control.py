@@ -6,7 +6,7 @@ class AckFrame(Frame):
     type = 0
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHI')
+        size = struct.calcsize('<BHI')
 
         def __init__(self, type: int, stream_id: int, frame_id: int) -> None:
             self.type = type
@@ -14,11 +14,11 @@ class AckFrame(Frame):
             self.frame_id = frame_id
 
         def pack(self) -> bytes:
-            return struct.pack('!BHI', self.type, self.stream_id, self.frame_id)
+            return struct.pack('<BHI', self.type, self.stream_id, self.frame_id)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'AckFrame.Header':
-            type, stream_id, frame_id = struct.unpack('!BHI', header_bytes)
+            type, stream_id, frame_id = struct.unpack('<BHI', header_bytes)
             return cls(type, stream_id, frame_id)
 
     def __init__(self, type: int, stream_id: int, frame_id: int) -> None:
@@ -40,17 +40,17 @@ class ExitFrame(Frame):
     type = 1
 
     class Header(Frame.Header):
-        size = struct.calcsize('!B')
+        size = struct.calcsize('<B')
 
         def __init__(self, type: int) -> None:
             self.type = type
 
         def pack(self) -> bytes:
-            return struct.pack('!B', self.type)
+            return struct.pack('<B', self.type)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ExitFrame.Header':
-            type = struct.unpack('!B', header_bytes)
+            type = struct.unpack('<B', header_bytes)
             return cls(type)
 
     def __init__(self, type: int) -> None:
@@ -72,7 +72,7 @@ class ConnectionIDChangeFrame(Frame):
     type = 2
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BII')
+        size = struct.calcsize('<BII')
 
         def __init__(self, type: int, old_connection_id: int, new_connection_id: int) -> None:
             self.type = type
@@ -80,12 +80,12 @@ class ConnectionIDChangeFrame(Frame):
             self.new_connection_id = new_connection_id
 
         def pack(self) -> bytes:
-            return struct.pack('!BII', self.type, self.old_connection_id, self.new_connection_id)
+            return struct.pack('<BII', self.type, self.old_connection_id, self.new_connection_id)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ConnectionIDChangeFrame.Header':
             type, old_connection_id, new_connection_id = struct.unpack(
-                '!BII', header_bytes)
+                '<BII', header_bytes)
             return cls(type, old_connection_id, new_connection_id)
 
     def __init__(self, type: int, old_connection_id: int, new_connection_id: int) -> None:
@@ -107,18 +107,18 @@ class FlowControlFrame(Frame):
     type = 3
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BI')
+        size = struct.calcsize('<BI')
 
         def __init__(self, type: int, window_size: int) -> None:
             self.type = type
             self.window_size = window_size
 
         def pack(self) -> bytes:
-            return struct.pack('!BI', self.type, self.window_size)
+            return struct.pack('<BI', self.type, self.window_size)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'FlowControlFrame.Header':
-            type, window_size = struct.unpack('!BI', header_bytes)
+            type, window_size = struct.unpack('<BI', header_bytes)
             return cls(type, window_size)
 
     def __init__(self, type: int, window_size: int) -> None:
@@ -140,7 +140,7 @@ class AnswerFrame(Frame):
     type = 4
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIIH')
+        size = struct.calcsize('<BHIIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
             self.type = type
@@ -150,12 +150,12 @@ class AnswerFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
+            return struct.pack('<BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'AnswerFrame.Header':
             type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
-                '!BHIIH', header_bytes)
+                '<BHIIH', header_bytes)
             return cls(type, stream_id, frame_id, command_frame_id, payload_length)
 
     class Payload(Frame.Payload):
@@ -195,7 +195,7 @@ class ErrorFrame(Frame):
     type = 5
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIIH')
+        size = struct.calcsize('<BHIIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
             self.type = type
@@ -205,12 +205,12 @@ class ErrorFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
+            return struct.pack('<BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ErrorFrame.Header':
             type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
-                '!BHIIH', header_bytes)
+                '<BHIIH', header_bytes)
             return cls(type, stream_id, frame_id, command_frame_id, payload_length)
 
     class Payload(Frame.Payload):

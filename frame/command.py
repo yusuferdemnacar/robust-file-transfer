@@ -6,7 +6,7 @@ class ReadFrame(Frame):
     type = 7
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIB6s6sIH')
+        size = struct.calcsize('<BHIB6s6sIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, flags: bytes, offset: int, length: int, checksum: int, payload_length: int) -> None:
             self.type = type
@@ -19,13 +19,13 @@ class ReadFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIB6s6sIH', self.type, self.stream_id, self.frame_id, self.flags, int.to_bytes(self.offset, 6, 'big'), int.to_bytes(self.length, 6, 'big'), self.checksum, self.payload_length)
+            return struct.pack('<BHIB6s6sIH', self.type, self.stream_id, self.frame_id, self.flags, int.to_bytes(self.offset, 6, 'little'), int.to_bytes(self.length, 6, 'little'), self.checksum, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ReadFrame.Header':
             type, stream_id, frame_id, flags, offset, length, checksum, payload_length = struct.unpack(
-                '!BHIB6s6sIH', header_bytes)
-            return cls(type, stream_id, frame_id, flags, int.from_bytes(offset, 'big'), int.from_bytes(length, 'big'), checksum, payload_length)
+                '<BHIB6s6sIH', header_bytes)
+            return cls(type, stream_id, frame_id, flags, int.from_bytes(offset, 'little'), int.from_bytes(length, 'little'), checksum, payload_length)
 
     class Payload(Frame.Payload):
 
@@ -64,7 +64,7 @@ class WriteFrame(Frame):
     type = 8
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHI6s6sH')
+        size = struct.calcsize('<BHI6s6sH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, length: int, payload_length: int) -> None:
             self.type = type
@@ -75,13 +75,13 @@ class WriteFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHI6s6sH', self.type, self.stream_id, self.frame_id, self.offset.to_bytes(6, 'big'), self.length.to_bytes(6, 'big'), self.payload_length)
+            return struct.pack('<BHI6s6sH', self.type, self.stream_id, self.frame_id, self.offset.to_bytes(6, 'little'), self.length.to_bytes(6, 'little'), self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'WriteFrame.Header':
             type, stream_id, frame_id, offset, length, payload_length = struct.unpack(
-                '!BHI6s6sH', header_bytes)
-            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'big'), int.from_bytes(length, 'big'), payload_length)
+                '<BHI6s6sH', header_bytes)
+            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'little'), int.from_bytes(length, 'little'), payload_length)
 
     class Payload(Frame.Payload):
 
@@ -120,7 +120,7 @@ class ChecksumFrame(Frame):
     type = 9
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIH')
+        size = struct.calcsize('<BHIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.type = type
@@ -129,12 +129,12 @@ class ChecksumFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
+            return struct.pack('<BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ChecksumFrame.Header':
             type, stream_id, frame_id, payload_length = struct.unpack(
-                '!BHIH', header_bytes)
+                '<BHIH', header_bytes)
             return cls(type, stream_id, frame_id, payload_length)
 
     class Payload(Frame.Payload):
@@ -175,7 +175,7 @@ class StatFrame(Frame):
     type = 10
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIH')
+        size = struct.calcsize('<BHIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.type = type
@@ -184,12 +184,12 @@ class StatFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
+            return struct.pack('<BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'StatFrame.Header':
             type, stream_id, frame_id, payload_length = struct.unpack(
-                '!BHIH', header_bytes)
+                '<BHIH', header_bytes)
             return cls(type, stream_id, frame_id, payload_length)
 
     class Payload(Frame.Payload):
@@ -230,7 +230,7 @@ class ListFrame(Frame):
     type = 11
 
     class Header(Frame.Header):
-        size = struct.calcsize('!BHIH')
+        size = struct.calcsize('<BHIH')
 
         def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.type = type
@@ -239,12 +239,12 @@ class ListFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
+            return struct.pack('<BHIH', self.type, self.stream_id, self.frame_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ListFrame.Header':
             type, stream_id, frame_id, payload_length = struct.unpack(
-                '!BHIH', header_bytes)
+                '<BHIH', header_bytes)
             return cls(type, stream_id, frame_id, payload_length)
 
     class Payload(Frame.Payload):

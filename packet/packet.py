@@ -48,12 +48,12 @@ class Packet:
         return self.__repr__()
 
     def pack(self) -> bytes:
-        return struct.pack('!BI3s', self.header.version, self.header.connection_id, self.header.checksum.to_bytes(3, 'big')) + b''.join(frame.pack() for frame in self.frames)
+        return struct.pack('<BI3s', self.header.version, self.header.connection_id, self.header.checksum.to_bytes(3, 'little')) + b''.join(frame.pack() for frame in self.frames)
 
     @classmethod
     def unpack(cls, packet_bytes: bytes) -> 'Packet':
         header = packet_bytes[:8]
-        version, connection_id, checksum = struct.unpack('!BI3s', header)
+        version, connection_id, checksum = struct.unpack('<BI3s', header)
         frames = []
         frames_bytes = packet_bytes[8:]
         while frames_bytes:
@@ -61,4 +61,4 @@ class Packet:
             frame = frame_types[frame_type].unpack(frames_bytes)
             frames.append(frame)
             frames_bytes = frames_bytes[len(frame):]
-        return cls(version, connection_id, int.from_bytes(checksum, 'big'), frames)
+        return cls(version, connection_id, int.from_bytes(checksum, 'little'), frames)
