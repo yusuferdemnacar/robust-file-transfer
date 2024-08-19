@@ -16,7 +16,7 @@ class DataFrame(Frame):
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('!BHI6sH', self.type, self.stream_id, self.frame_id, self.offset, self.payload_length)
+            return struct.pack('!BHI6sH', self.type, self.stream_id, self.frame_id, int.to_bytes(self.offset, 6, 'big'), self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'DataFrame.Header':
