@@ -1,55 +1,73 @@
-import struct
+import abc
+from typing import Self
 
 
-class Frame:
+class Frame(abc.ABC):
+    type = ...
 
-    class Header:
+    class Header(abc.ABC):
+        size = ...
 
-        def __init__(self, type: int, size: int) -> None:
-            self.type = type
-
-        def pack(self, format_string: str) -> bytes:
-            return struct.pack(format_string, *self.__dict__.values())
-
-        @classmethod
-        def unpack(cls, data: bytes, format_string: str) -> 'Frame.Header':
-            return cls(*struct.unpack(format_string, data))
-
-        def __repr__(self):
+        def __repr__(self) -> str:
             fields = ', '.join(f'{key}={value}' for key,
                                value in self.__dict__.items())
             return f'{self.__class__.__name__}({fields})'
 
-    class Payload:
+        def __str__(self) -> str:
+            return self.__repr__()
 
-        def __init__(self):
-            pass
+        def __len__(self) -> int:
+            return self.size
 
-        def pack(self, format_string: str) -> bytes:
-            return struct.pack(format_string, *self.__dict__.values())
+        @abc.abstractmethod
+        def pack(self) -> bytes:
+            ...
 
         @classmethod
-        def unpack(cls, data: bytes, format_string: str) -> 'Frame.Payload':
-            return cls(*struct.unpack(format_string, data))
+        @abc.abstractmethod
+        def unpack(cls, header_bytes: bytes) -> Self:
+            ...
 
-        def __repr__(self):
+    class Payload(abc.ABC):
+
+        def __repr__(self) -> str:
             fields = ', '.join(f'{key}={value}' for key,
                                value in self.__dict__.items())
             return f'{self.__class__.__name__}({fields})'
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+        def __str__(self) -> str:
+            return self.__repr__()
 
-    def pack(self, header_format_string: str, payload_format_string: str) -> bytes:
-        return self.header.pack(header_format_string) + self.payload.pack(payload_format_string)
+        @abc.abstractmethod
+        def __len__(self) -> int:
+            ...
+
+        @abc.abstractmethod
+        def pack(self) -> bytes:
+            ...
+
+        @classmethod
+        @abc.abstractmethod
+        def unpack(cls, payload_bytes: bytes) -> Self:
+            ...
+
+    def __repr__(self) -> str:
+        fields = ', '.join(f'{key}={value}' for key,
+                           value in self.__dict__.items())
+        return f'{self.__class__.__name__}({fields})'
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @abc.abstractmethod
+    def __len__(self) -> int:
+        ...
+
+    @abc.abstractmethod
+    def pack(self) -> bytes:
+        ...
 
     @classmethod
-    def unpack(cls, data: bytes, header_format_string: str, payload_format_string: str) -> 'Frame':
-        header_size = struct.calcsize(header_format_string)
-        header = cls.Header.unpack(data[:header_size], header_format_string)
-        payload = cls.Payload.unpack(data[header_size:], payload_format_string)
-        return cls(header, payload)
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.header}, {self.payload})'
+    @abc.abstractmethod
+    def unpack(cls, frame_bytes: bytes) -> Self:
+        ...
