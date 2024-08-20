@@ -3,7 +3,6 @@ from typing import Self
 
 
 class Frame(abc.ABC):
-    type = ...
 
     class Header(abc.ABC):
         size = ...
@@ -50,6 +49,10 @@ class Frame(abc.ABC):
         @abc.abstractmethod
         def unpack(cls, payload_bytes: bytes) -> Self:
             ...
+
+    @property
+    def frameType(self):
+        return self.header.type
 
     def __repr__(self) -> str:
         fields = ', '.join(f'{key}={value}' for key,

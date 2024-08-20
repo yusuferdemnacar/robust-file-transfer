@@ -21,8 +21,8 @@ class AckFrame(Frame):
             type, stream_id, frame_id = struct.unpack('<BHI', header_bytes)
             return cls(type, stream_id, frame_id)
 
-    def __init__(self, type: int, stream_id: int, frame_id: int) -> None:
-        self.header = self.Header(type, stream_id, frame_id)
+    def __init__(self, stream_id: int, frame_id: int) -> None:
+        self.header = self.Header(self.type, stream_id, frame_id)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -53,8 +53,8 @@ class ExitFrame(Frame):
             type = struct.unpack('<B', header_bytes)
             return cls(type)
 
-    def __init__(self, type: int) -> None:
-        self.header = self.Header(type)
+    def __init__(self) -> None:
+        self.header = self.Header(self.type)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -88,8 +88,8 @@ class ConnectionIDChangeFrame(Frame):
                 '<BII', header_bytes)
             return cls(type, old_connection_id, new_connection_id)
 
-    def __init__(self, type: int, old_connection_id: int, new_connection_id: int) -> None:
-        self.header = self.Header(type, old_connection_id, new_connection_id)
+    def __init__(self, old_connection_id: int, new_connection_id: int) -> None:
+        self.header = self.Header(self.type, old_connection_id, new_connection_id)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -121,8 +121,8 @@ class FlowControlFrame(Frame):
             type, window_size = struct.unpack('<BI', header_bytes)
             return cls(type, window_size)
 
-    def __init__(self, type: int, window_size: int) -> None:
-        self.header = self.Header(type, window_size)
+    def __init__(self, window_size: int) -> None:
+        self.header = self.Header(self.type, window_size)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -173,9 +173,9 @@ class AnswerFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'AnswerFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload: bytes) -> None:
+    def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload: bytes) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, command_frame_id, len(payload))
+            self.type, stream_id, frame_id, command_frame_id, len(payload))
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -192,13 +192,12 @@ class AnswerFrame(Frame):
 
 
 class ErrorFrame(Frame):
-    type = 5
 
     class Header(Frame.Header):
+        type = 5
         size = struct.calcsize('<BHIIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.command_frame_id = command_frame_id
@@ -228,9 +227,9 @@ class ErrorFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ErrorFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, command_frame_id, len(payload))
+            stream_id, frame_id, command_frame_id, len(payload))
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:

@@ -3,13 +3,12 @@ from frame.frame import Frame
 
 
 class DataFrame(Frame):
-    type = 6
 
     class Header(Frame.Header):
+        type = 6
         size = struct.calcsize('<BHI6sH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, offset: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.offset = offset
@@ -39,9 +38,9 @@ class DataFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, offset: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, offset, payload_length)
+            stream_id, frame_id, offset, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:

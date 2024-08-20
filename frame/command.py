@@ -3,13 +3,12 @@ from frame.frame import Frame
 
 
 class ReadFrame(Frame):
-    type = 7
 
     class Header(Frame.Header):
+        type = 7
         size = struct.calcsize('<BHIB6s6sIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, flags: bytes, offset: int, length: int, checksum: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, flags: bytes, offset: int, length: int, checksum: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.flags = flags
@@ -42,9 +41,9 @@ class ReadFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ReadFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, flags: bytes, offset: int, length: int, checksum: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, flags: bytes, offset: int, length: int, checksum: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, flags, offset, length, checksum, payload_length)
+            stream_id, frame_id, flags, offset, length, checksum, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -61,13 +60,12 @@ class ReadFrame(Frame):
 
 
 class WriteFrame(Frame):
-    type = 8
 
     class Header(Frame.Header):
+        type = 8
         size = struct.calcsize('<BHI6s6sH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, length: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, offset: int, length: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.offset = offset
@@ -98,9 +96,9 @@ class WriteFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'WriteFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, offset: int, length: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, offset: int, length: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, offset, length, payload_length)
+            stream_id, frame_id, offset, length, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -117,13 +115,12 @@ class WriteFrame(Frame):
 
 
 class ChecksumFrame(Frame):
-    type = 9
 
     class Header(Frame.Header):
+        type = 9
         size = struct.calcsize('<BHIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.payload_length = payload_length
@@ -152,10 +149,10 @@ class ChecksumFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ChecksumFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
 
         self.header = self.Header(
-            type, stream_id, frame_id, payload_length)
+            stream_id, frame_id, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -172,13 +169,12 @@ class ChecksumFrame(Frame):
 
 
 class StatFrame(Frame):
-    type = 10
 
     class Header(Frame.Header):
+        type = 10
         size = struct.calcsize('<BHIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.payload_length = payload_length
@@ -207,10 +203,10 @@ class StatFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'StatFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
 
         self.header = self.Header(
-            type, stream_id, frame_id, payload_length)
+            stream_id, frame_id, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
@@ -227,13 +223,12 @@ class StatFrame(Frame):
 
 
 class ListFrame(Frame):
-    type = 11
 
     class Header(Frame.Header):
+        type = 11
         size = struct.calcsize('<BHIH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, frame_id: int, payload_length: int) -> None:
             self.stream_id = stream_id
             self.frame_id = frame_id
             self.payload_length = payload_length
@@ -262,10 +257,9 @@ class ListFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ListFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, type: int, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
-
+    def __init__(self, stream_id: int, frame_id: int, payload_length: int, payload: str) -> None:
         self.header = self.Header(
-            type, stream_id, frame_id, payload_length)
+            stream_id, frame_id, payload_length)
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
