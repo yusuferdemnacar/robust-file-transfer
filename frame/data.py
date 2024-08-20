@@ -38,7 +38,8 @@ class DataFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, stream_id: int, frame_id: int, offset: int, payload_length: int, payload: str) -> None:
+    def __init__(self, stream_id: int, frame_id: int, offset: int, payload: bytes) -> None:
+        payload_length = len(payload)
         self.header = self.Header(
             stream_id, frame_id, offset, payload_length)
         self.payload = self.Payload(payload)
