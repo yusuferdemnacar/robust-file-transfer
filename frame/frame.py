@@ -3,6 +3,7 @@ from typing import Self
 
 
 class Frame(abc.ABC):
+    type = ...
 
     class Header(abc.ABC):
         size = ...

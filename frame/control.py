@@ -6,23 +6,25 @@ class AckFrame(Frame):
     type = 0
 
     class Header(Frame.Header):
-        size = struct.calcsize('<BHI')
+        size = struct.calcsize('<BI')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int) -> None:
-            self.type = type
-            self.stream_id = stream_id
-            self.frame_id = frame_id
+        def __init__(self, packet_id: int) -> None:
+            self.type = AckFrame.type
+            self.packet_id = packet_id
 
         def pack(self) -> bytes:
-            return struct.pack('<BHI', self.type, self.stream_id, self.frame_id)
+            return struct.pack('<BI', self.type, self.packet_id)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'AckFrame.Header':
-            type, stream_id, frame_id = struct.unpack('<BHI', header_bytes)
-            return cls(type, stream_id, frame_id)
+            type, packet_id = struct.unpack('<BI', header_bytes)
+            if type != AckFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {AckFrame.type})')
+            return cls(packet_id)
 
-    def __init__(self, stream_id: int, frame_id: int) -> None:
-        self.header = self.Header(self.type, stream_id, frame_id)
+    def __init__(self, header: Header) -> None:
+        self.header = header
 
     def __len__(self) -> int:
         return len(self.header)
@@ -33,7 +35,7 @@ class AckFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'AckFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.stream_id, header.frame_id)
+        return cls(header)
 
 
 class ExitFrame(Frame):
@@ -42,8 +44,8 @@ class ExitFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('<B')
 
-        def __init__(self, type: int) -> None:
-            self.type = type
+        def __init__(self) -> None:
+            self.type = ExitFrame.type
 
         def pack(self) -> bytes:
             return struct.pack('<B', self.type)
@@ -51,10 +53,13 @@ class ExitFrame(Frame):
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ExitFrame.Header':
             type = struct.unpack('<B', header_bytes)
-            return cls(type)
+            if type != ExitFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {ExitFrame.type})')
+            return cls()
 
-    def __init__(self) -> None:
-        self.header = self.Header(self.type)
+    def __init__(self, header: Header) -> None:
+        self.header = header
 
     def __len__(self) -> int:
         return len(self.header)
@@ -65,7 +70,7 @@ class ExitFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'ExitFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type)
+        return cls(header)
 
 
 class ConnectionIDChangeFrame(Frame):
@@ -74,8 +79,8 @@ class ConnectionIDChangeFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('<BII')
 
-        def __init__(self, type: int, old_connection_id: int, new_connection_id: int) -> None:
-            self.type = type
+        def __init__(self, old_connection_id: int, new_connection_id: int) -> None:
+            self.type = ConnectionIDChangeFrame.type
             self.old_connection_id = old_connection_id
             self.new_connection_id = new_connection_id
 
@@ -86,10 +91,13 @@ class ConnectionIDChangeFrame(Frame):
         def unpack(cls, header_bytes: bytes) -> 'ConnectionIDChangeFrame.Header':
             type, old_connection_id, new_connection_id = struct.unpack(
                 '<BII', header_bytes)
-            return cls(type, old_connection_id, new_connection_id)
+            if type != ConnectionIDChangeFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {ConnectionIDChangeFrame.type})')
+            return cls(old_connection_id, new_connection_id)
 
-    def __init__(self, old_connection_id: int, new_connection_id: int) -> None:
-        self.header = self.Header(self.type, old_connection_id, new_connection_id)
+    def __init__(self, header: Header) -> None:
+        self.header = header
 
     def __len__(self) -> int:
         return len(self.header)
@@ -100,7 +108,7 @@ class ConnectionIDChangeFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'ConnectionIDChangeFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.old_connection_id, header.new_connection_id)
+        return cls(header)
 
 
 class FlowControlFrame(Frame):
@@ -109,8 +117,8 @@ class FlowControlFrame(Frame):
     class Header(Frame.Header):
         size = struct.calcsize('<BI')
 
-        def __init__(self, type: int, window_size: int) -> None:
-            self.type = type
+        def __init__(self, window_size: int) -> None:
+            self.type = FlowControlFrame.type
             self.window_size = window_size
 
         def pack(self) -> bytes:
@@ -119,10 +127,13 @@ class FlowControlFrame(Frame):
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'FlowControlFrame.Header':
             type, window_size = struct.unpack('<BI', header_bytes)
-            return cls(type, window_size)
+            if type != FlowControlFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {FlowControlFrame.type})')
+            return cls(window_size)
 
-    def __init__(self, window_size: int) -> None:
-        self.header = self.Header(self.type, window_size)
+    def __init__(self, header: Header) -> None:
+        self.header = header
 
     def __len__(self) -> int:
         return len(self.header)
@@ -133,30 +144,31 @@ class FlowControlFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'FlowControlFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.window_size)
+        return cls(header)
 
 
 class AnswerFrame(Frame):
     type = 4
 
     class Header(Frame.Header):
-        size = struct.calcsize('<BHIIH')
+        size = struct.calcsize('<BHH')
 
-        def __init__(self, type: int, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
-            self.type = type
+        def __init__(self, stream_id: int, payload_length: int) -> None:
+            self.type = AnswerFrame.type
             self.stream_id = stream_id
-            self.frame_id = frame_id
-            self.command_frame_id = command_frame_id
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('<BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
+            return struct.pack('<BHH', self.type, self.stream_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'AnswerFrame.Header':
-            type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
-                '<BHIIH', header_bytes)
-            return cls(type, stream_id, frame_id, command_frame_id, payload_length)
+            type, stream_id, payload_length = struct.unpack(
+                '<BHH', header_bytes)
+            if type != AnswerFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {AnswerFrame.type})')
+            return cls(stream_id, payload_length)
 
     class Payload(Frame.Payload):
 
@@ -173,10 +185,9 @@ class AnswerFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'AnswerFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload: bytes) -> None:
-        self.header = self.Header(
-            self.type, stream_id, frame_id, command_frame_id, len(payload))
-        self.payload = self.Payload(payload)
+    def __init__(self, header: Header, payload: Payload) -> None:
+        self.header = header
+        self.payload = payload
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -188,29 +199,34 @@ class AnswerFrame(Frame):
     def unpack(cls, frame_bytes: bytes) -> 'AnswerFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
         payload = cls.Payload.unpack(frame_bytes[cls.Header.size:])
-        return cls(header.type, header.stream_id, header.frame_id, header.command_frame_id, payload.data)
+        if len(payload) != header.payload_length:
+            raise ValueError(
+                f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
+        return cls(header, payload)
 
 
 class ErrorFrame(Frame):
+    type = 5
 
     class Header(Frame.Header):
-        type = 5
-        size = struct.calcsize('<BHIIH')
+        size = struct.calcsize('<BHH')
 
-        def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload_length: int) -> None:
+        def __init__(self, stream_id: int, payload_length: int) -> None:
+            self.type = ErrorFrame.type
             self.stream_id = stream_id
-            self.frame_id = frame_id
-            self.command_frame_id = command_frame_id
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('<BHIIH', self.type, self.stream_id, self.frame_id, self.command_frame_id, self.payload_length)
+            return struct.pack('<BHH', self.type, self.stream_id, self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ErrorFrame.Header':
-            type, stream_id, frame_id, command_frame_id, payload_length = struct.unpack(
-                '<BHIIH', header_bytes)
-            return cls(type, stream_id, frame_id, command_frame_id, payload_length)
+            type, stream_id, payload_length = struct.unpack(
+                '<BHH', header_bytes)
+            if type != cls.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {cls.type})')
+            return cls(stream_id, payload_length)
 
     class Payload(Frame.Payload):
 
@@ -227,10 +243,9 @@ class ErrorFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ErrorFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, stream_id: int, frame_id: int, command_frame_id: int, payload: str) -> None:
-        self.header = self.Header(
-            stream_id, frame_id, command_frame_id, len(payload))
-        self.payload = self.Payload(payload)
+    def __init__(self, header: Header, payload: Payload) -> None:
+        self.header = header
+        self.payload = payload
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -242,4 +257,7 @@ class ErrorFrame(Frame):
     def unpack(cls, frame_bytes: bytes) -> 'ErrorFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
         payload = cls.Payload.unpack(frame_bytes[cls.Header.size:])
-        return cls(header.type, header.stream_id, header.frame_id, header.command_frame_id, payload.data)
+        if len(payload) != header.payload_length:
+            raise ValueError(
+                f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
+        return cls(header, payload)

@@ -3,25 +3,28 @@ from frame.frame import Frame
 
 
 class DataFrame(Frame):
+    type = 6
 
     class Header(Frame.Header):
-        type = 6
-        size = struct.calcsize('<BHI6sH')
+        size = struct.calcsize('<BH6sH')
 
-        def __init__(self, stream_id: int, frame_id: int, offset: int, payload_length: int) -> None:
+        def __init__(self, stream_id: int, offset: int, payload_length: int) -> None:
+            self.type = DataFrame.type
             self.stream_id = stream_id
-            self.frame_id = frame_id
             self.offset = offset
             self.payload_length = payload_length
 
         def pack(self) -> bytes:
-            return struct.pack('<BHI6sH', self.type, self.stream_id, self.frame_id, int.to_bytes(self.offset, 6, 'little'), self.payload_length)
+            return struct.pack('<BH6sH', self.type, self.stream_id, int.to_bytes(self.offset, 6, 'little'), self.payload_length)
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'DataFrame.Header':
-            type, stream_id, frame_id,  offset, payload_length = struct.unpack(
-                '<BHI6sH', header_bytes)
-            return cls(type, stream_id, frame_id, int.from_bytes(offset, 'little'), payload_length)
+            type, stream_id, offset, payload_length = struct.unpack(
+                '<BH6sH', header_bytes)
+            if type != DataFrame.type:
+                raise ValueError(
+                    f'Invalid header type: {type} (expected {DataFrame.type})')
+            return cls(stream_id, int.from_bytes(offset, 'little'), payload_length)
 
     class Payload(Frame.Payload):
 
@@ -38,11 +41,9 @@ class DataFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, stream_id: int, frame_id: int, offset: int, payload: bytes) -> None:
-        payload_length = len(payload)
-        self.header = self.Header(
-            stream_id, frame_id, offset, payload_length)
-        self.payload = self.Payload(payload)
+    def __init__(self, header: Header, payload: Payload) -> None:
+        self.header = header
+        self.payload = payload
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -54,4 +55,7 @@ class DataFrame(Frame):
     def unpack(cls, frame_bytes: bytes) -> 'DataFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
         payload = cls.Payload.unpack(frame_bytes[cls.Header.size:])
-        return cls(header.type, header.stream_id, header.frame_id, header.offset, header.payload_length, payload.data)
+        if len(payload) != header.payload_length:
+            raise ValueError(
+                f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
+        return cls(header, payload)
