@@ -1,2 +1,2 @@
-from common.connection_handler import ConnectionHandler
-from common.connection_handler import Socket
+from common.connection import Connection
+from common.connection_manager import ConnectionManager

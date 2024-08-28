@@ -64,7 +64,7 @@ def main():
     if args.server:
         run_server(args.port)
     else:
-        run_client(args.host, args.port)
+        run_client(args.host, args.port, args.file)
 
 if __name__ == "__main__":
     main()
