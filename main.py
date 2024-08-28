@@ -1,9 +1,10 @@
 # main.py
-from packet.packet import Packet
+from app import run_client, run_server
 
 import argparse
 import textwrap
 import sys
+import logging
 
 def main():
     parser = argparse.ArgumentParser(
@@ -58,7 +59,12 @@ def main():
     if not args.server and (not args.host or len(args.file) == 0):
         sys.exit("in client mode the host and at least one filename must be specified")
 
+    logging.basicConfig(level=logging.INFO, format="[ %(levelname)s ] %(filename)s: %(message)s")
 
+    if args.server:
+        run_server(args.port)
+    else:
+        run_client(args.host, args.port)
 
 if __name__ == "__main__":
     main()

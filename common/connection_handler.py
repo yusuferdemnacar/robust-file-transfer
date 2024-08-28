@@ -71,22 +71,22 @@ class Socket:
         if last_updated is not None:
             last_updated.flush()
 
-        timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
+        #timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
         rlist, _, _ = select([self.socket], [], [], timeout)
 
         if len(rlist) == 0:
             # timeout occured!
             timedout_connection.update(None)
-            continue
+            #continue
 
         # 64kib is the maximum ip payload size anyway
         data, addrinfo = self.socket.recvfrom(65536)
         logging.info(addrinfo)
 
-        try:
-            packet = parse_data(data)
-        except ParseError:
-            continue
+        #try:
+        #    packet = parse_data(data)
+        #except ParseError:
+            ##continue
 
         if packet.connection_id not in connections:
             # if client, ignore
@@ -105,7 +105,7 @@ class ConnectionHandler:
         self.socket = socket
 
 
-        self.connection: Connection = ...
+        self.connection = ...
 
         self.remote_host: str = ...
         self.remote_port: int = ...
@@ -131,7 +131,7 @@ class ConnectionHandler:
 
         pass
 
-    def update(self, data: Packet = None, addrinfo = None) -> float:
+    def update(self, data = None, addrinfo = None) -> float:
         # this function applies updates to the connection/streams from a packets.
 
         # TODO: update remote ip/port if changed.
