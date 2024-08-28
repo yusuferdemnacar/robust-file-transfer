@@ -41,9 +41,9 @@ class DataFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'DataFrame.Payload':
             return cls(payload_bytes)
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, offset: int, payload: bytes) -> None:
+        self.header = self.Header(stream_id, offset, len(payload))
+        self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -58,4 +58,4 @@ class DataFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.stream_id, header.offset, payload.data)

@@ -44,9 +44,9 @@ class ReadFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ReadFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, flags: bytes, offset: int, length: int, checksum: int, payload: str) -> None:
+        self.header = self.Header(stream_id, flags, offset, length, checksum, len(payload))
+        self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -61,7 +61,7 @@ class ReadFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.type, header.stream_id, header.flags, header.offset, header.length, header.checksum, payload.data)
 
 
 class WriteFrame(Frame):
@@ -104,9 +104,9 @@ class WriteFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'WriteFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, offset: int, length: int, payload: str) -> None:
+        self.header = self.Header(stream_id, offset, length, len(payload))
+        self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -121,7 +121,7 @@ class WriteFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.type, header.stream_id, header.offset, header.length, payload.data)
 
 
 class ChecksumFrame(Frame):
@@ -162,9 +162,10 @@ class ChecksumFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ChecksumFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, payload: str) -> None:
+
+        self.header = self.Header(stream_id, len(payload))
+        self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -179,7 +180,7 @@ class ChecksumFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.type, header.stream_id, payload.data)
 
 
 class StatFrame(Frame):
@@ -220,9 +221,9 @@ class StatFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'StatFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, payload: str) -> None:
+        self.header = self.Header(stream_id, len(payload))
+        self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -237,7 +238,7 @@ class StatFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.stream_id, payload.data)
 
 
 class ListFrame(Frame):
@@ -278,9 +279,9 @@ class ListFrame(Frame):
         def unpack(cls, payload_bytes: bytes) -> 'ListFrame.Payload':
             return cls(str(payload_bytes, 'utf-8'))
 
-    def __init__(self, header: Header, payload: Payload) -> None:
-        self.header = header
-        self.payload = payload
+    def __init__(self, stream_id: int, path: str) -> None:
+        self.header = self.Header(stream_id, len(path))
+        self.payload = self.Payload(path)
 
     def __len__(self) -> int:
         return len(self.header) + len(self.payload)
@@ -295,4 +296,4 @@ class ListFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header, payload)
+        return cls(header.stream_id, payload.data)

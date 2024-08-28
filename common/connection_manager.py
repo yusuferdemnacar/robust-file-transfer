@@ -5,7 +5,7 @@ import time
 import queue
 
 from common import Connection
-from frame import Frame
+from packet import Packet
 
 # no functional code yet, but a lot of notes
 
@@ -87,10 +87,10 @@ class ClientConnection(Connection):
 
 
 class UnknownConnectionIDEvent:
-    def __init__(self, packet, host, port):
-        self.packet = packet
-        self.port = port
-        self.host = host
+    def __init__(self, packet, addrinfo):
+        self.packet: Packet = packet
+        self.host: str = addrinfo[0]
+        self.port: int = addrinfo[1]
 
 
 class ConnectionManager:
@@ -107,18 +107,24 @@ class ConnectionManager:
         logging.info(f"local address is {self.local_address} at port {self.local_port}")
 
         self.connections: dict[int, Connection] = {}
-        self.last_updated: list[Connection | None] = None
+        self.last_updated: list[Connection] = []
 
-    def loop(self, init: Connection | None = None):
-        
-        if init:
-            self.connections[init.connection_id] = Connection(self.socket, init)
-            self.last_updated = [init.handler]
+    def add_connection(self, connection: Connection):
+        if connection.connection_id in self.connections:
+            raise Exception("Cannot have two connections with the same ID at once")
+        self.last_updated.append(connection)
+        self.connections[connection.connection_id] = connection
+
+    def next_connection_id(self):
+        return max(self.connections.keys(), default=0) + 1
+
+    def loop(self):
 
         while True: # TODO: termination condition
 
             for con in self.last_updated:
                 con.flush()
+                self.last_updated.remove(con)
 
             #timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
             timeout = None # TODO: timeouts and retransmissions
@@ -133,18 +139,16 @@ class ConnectionManager:
             data, addrinfo = self.socket.recvfrom(65536)
             logging.info(addrinfo)
 
+            try:
+                packet = Packet.unpack(data)
+                connection_id = packet.header.connection_id
+            except Exception:
+                # ignore packets that are not parseable --> read again
+                continue
 
-            #try:
-            #    packet = parse_data(data)
-            #except ParseError:
-                ##continue
-
-            if packet.connection_id not in self.connections:
-                # if client, ignore
-                # if server, open new connection
-                yield UnknownConnectionIDEvent(packet, addrinfo[0], addrinfo[1])
+            if connection_id not in self.connections:
+                yield UnknownConnectionIDEvent(packet, addrinfo)
             else:
-                self.last_updated = self.connections[packet.connection_id]
-            
-            self.last_updated.update(packet)
+                self.connections[connection_id].update(packet)
+                self.last_updated.append(self.connections[connection_id])
 
