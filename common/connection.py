@@ -42,7 +42,7 @@ class Connection:
         self.max_inflight_bytes = self.max_packet_size * 32
         
         # send windowing
-        self.next_packet_id = random.randint(0, 2 ** 32 - 1)
+        self.last_packet_id = random.randint(0, 2 ** 32 - 1)
         self.inflight_packets: dict[int, bytes] = {}# packet cache for retransmissions
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
 
@@ -65,7 +65,7 @@ class Connection:
 
         # (1) TODO: replay packets that need retransmission. count how many times a packet has been
         # transmitted. Connection dies after a certain amount of retransmissions.
-        # (2) TODO: actually building the Packet objects
+        # (2) TODO: setting checksum (and ACK number) in packet objects
 
         # this is the amount of bytes that we are allowed to send out according to the current send window:
         max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
@@ -112,16 +112,15 @@ class Connection:
                 break
 
             # let's start packaging frames!
-            packet_id = self.next_packet_id
-            self.next_packet_id += 1
-            packet = Packet(...) # TODO
+            packet_id = self.last_packet_id + 1
+            packet = Packet(Packet.Header(1, self.connection_id, packet_id, 0), to_be_packaged_frames) # TODO set checksum & ACK
+            self.last_packet_id = packet_id
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
 
         if force_ack and len(to_be_flushed_packets) == 0:
-            # add empty packet (without increasing the packet id)
-            packet = Packet(...) # TODO
+            packet = Packet(Packet.Header(1, self.connection_id, self.last_packet_id, 0), []) # TODO set checksum & ACK
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
@@ -143,7 +142,7 @@ class Connection:
             # - version
             # - connectionID
             # - packet checksum
-        # TODO: generate an ack packet for this packet.
+        # TODO: generate an ack packet for this packet. IF the packet was not empty.
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.
