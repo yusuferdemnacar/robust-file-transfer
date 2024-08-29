@@ -9,6 +9,7 @@ from collections import deque
 
 import time
 import logging
+import random
 
 class Connection:
 
@@ -35,47 +36,100 @@ class Connection:
 
         # frames are scheduled using a double-ended queue (also see queue_frame() function)
         self.frame_queue = deque()
-        self.next_packet_id = 1
 
-        pass
+        # start out with 32 max-sized packets, usually the receive buffer for sockets under linux can hold that amount
+        self.max_packet_size = 1500 - 40 - 8 # TODO do MTU discovery?
+        self.max_inflight_bytes = self.max_packet_size * 32
+        
+        # send windowing
+        self.next_packet_id = random.randint(0, 2 ** 32 - 1)
+        self.inflight_packets: dict[int, bytes] = {}# packet cache for retransmissions
+        self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
 
-    def flush(self):
-        # this is the only function that actually causes the transmission of data.
-        # returns a float indicating after what amount of time the update() function should be called again
 
-        # send all frames that are currently within the send window of this connection
-        # connection has socket attribute
-        # connection has remote host and remote port attributes
+    def flush(self, force_ack=False):
+        """
+        This is the only function that actually causes the transmission of data.
+        It builds as many packets as possible from the frame queue without exceeding the send
+        window (max_inflight_bytes) of this connection. 
 
-        if len(self.frame_queue) == 0:
-            return
+        force_ack=True guarantees that at least one packet is sent with an updated acknowledgement number,
+        even if the send window does not allow it, or if the frame queue is empty. If necessary, an empty
+        packet will be generated (just a global header). Empty packets do not increase the packet_id, since
+        no payload is transmitted.
 
-        # 1500 - 40 (ipv6) - 8 (udp)
-        MTU_SIZE = 1452  # TODO: what value to use here?
+        If force_ack is False, one or more packets will be sent out if there are outstanding frames in
+        the queue, and if the send window window allows sending that packet. Otherwise, no packet will be
+        sent, until the next call to flush().
+        """
 
-        packet_size = 8 # global header
-        frames = []
-        while True:
-            if len(self.frame_queue) == 0:
-                break
-            frame: Frame = self.frame_queue.pop()
-            raw_frame = frame.pack()
-            if packet_size + len(raw_frame) > MTU_SIZE:
-                self.frame_queue.append(frame)
-            else:
-                frames.append(frame)
-                packet_size = packet_size + len(raw_frame)
-
-        packet_id = self.next_packet_id
-        self.next_packet_id += 1
-        packet = Packet(Packet.Header(1, self.connection_id, packet_id, 0))
-
-        # TODO: replay packets that need retransmission. count how many times a packet has been
+        # (1) TODO: replay packets that need retransmission. count how many times a packet has been
         # transmitted. Connection dies after a certain amount of retransmissions.
-        # TODO: build packets from queued frames and put them into send window queue
-        # TODO: look into send window and transmit outstanding data
+        # (2) TODO: actually building the Packet objects
 
-        self.last_flushed = time.monotonic_ns()
+        # this is the amount of bytes that we are allowed to send out according to the current send window:
+        max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
+
+        to_be_flushed_packets: list[Packet] = []
+        to_be_flushed_bytes: int = 0
+        # ... and start packaging:
+
+        while True:
+            global_header_size = Packet.Header.size
+
+            # add frames to the packet until either max_packet_size or max_flush_bytes is exceeded:
+            to_be_packaged_frames: list[Frame] = []
+            to_be_packaged_bytes: int = 0
+
+            while True:
+                if len(self.frame_queue) == 0:
+                    # no more frames to add
+                    break
+
+                # decide if we can package one more frame:
+                predicted_packet_size = global_header_size + to_be_packaged_bytes + len(self.frame_queue[0])
+
+                if predicted_packet_size > self.max_packet_size:
+                    # this should only happen if the to_be_packaged_frames list is not empty, otherwise...
+                    if len(to_be_packaged_frames) == 0:
+                        logging.error(f"The frame {self.frame_queue[0]} cannot be sent without exceeding the maximum packet size!")
+                        # since we can do nothing here, the ill-sized frame is now clogging the queue
+                    break
+                elif to_be_flushed_bytes + predicted_packet_size > max_flush_bytes:
+                    # let's not trust our own implementation and log an error in case the send window size is too small.
+                    if len(to_be_packaged_frames) == 0 and predicted_packet_size > self.max_inflight_bytes:
+                        logging.error(f"The frame {self.frame_queue[0]} cannot be sent without exceeding the send window!")
+                        # since we can do nothing here, the ill-sized frame/the ill-sized send window is now clogging the queue
+                else:
+                    # we can add this frame to the packet!
+                    frame = self.frame_queue.pop()
+                    to_be_packaged_frames.append(frame)
+                    to_be_packaged_bytes += len(frame)
+
+            if len(to_be_packaged_frames) == 0:
+                # we cannot build another packet with the frame queue.
+                # it was either empty, or the max. packet size is exceeded, or the send window is exceeded.
+                break
+
+            # let's start packaging frames!
+            packet_id = self.next_packet_id
+            self.next_packet_id += 1
+            packet = Packet(...) # TODO
+            to_be_flushed_packets.append(packet)
+            to_be_flushed_bytes += len(packet)
+
+
+        if force_ack and len(to_be_flushed_packets) == 0:
+            # add empty packet (without increasing the packet id)
+            packet = Packet(...) # TODO
+            to_be_flushed_packets.append(packet)
+            to_be_flushed_bytes += len(packet)
+
+        for packet in to_be_flushed_packets:
+            data = packet.pack()
+            self.inflight_bytes += len(data)
+            self.inflight_packets[packet.header.packet_id] = data
+            self.connection_manager.socket.sendto(data, (self.remote_host, self.remote_port))
 
     def update(self, packet: Packet, addrinfo) -> float:
         # this function applies updates to the connection/streams from a packets.

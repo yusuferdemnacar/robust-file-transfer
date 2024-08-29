@@ -23,6 +23,8 @@ class Packet:
 
     class Header:
 
+        size = struct.calcsize('<BII3s')
+
         def __init__(self, version: int, connection_id: int, packet_id: int, checksum: int) -> None:
             self.version = version
             self.connection_id = connection_id
@@ -38,7 +40,7 @@ class Packet:
             return self.__repr__()
 
         def __len__(self) -> int:
-            return
+            return self.size
 
         def pack(self) -> bytes:
             return struct.pack('<BII3s', self.version, self.connection_id, self.packet_id, self.checksum)
@@ -54,6 +56,9 @@ class Packet:
 
     def __str__(self) -> str:
         return self.__repr__()
+    
+    def __len__(self) -> int:
+        return self.header.size + sum([len(frame) for frame in self.frames])
 
     def pack(self) -> bytes:
         return self.header.pack() + b''.join(frame.pack() for frame in self.frames)
