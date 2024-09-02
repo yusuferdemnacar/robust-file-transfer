@@ -154,7 +154,7 @@ class Connection:
         # TODO: detect increase/decrease of send window size.
 
 
-        for frame in packet:
+        for frame in packet.frames:
             # TODO: handle some of the control frames here:
             # - ack frame
             # - exit frame
@@ -186,6 +186,8 @@ class Connection:
         # append():
         # - inserts at front of queue (will be transmitted first)
         # - reverses order of insertion if called multiple times (like a stack)
+
+        logging.info(f"queue_frame({type(frame)})")
 
         if transmit_first is not None:
             if transmit_first:
