@@ -23,8 +23,8 @@ class AckFrame(Frame):
                     f'Invalid header type: {type} (expected {AckFrame.type})')
             return cls(packet_id)
 
-    def __init__(self, stream_id: int) -> None:
-        self.header = self.Header(self.type, stream_id)
+    def __init__(self, packet_id: int) -> None:
+        self.header = self.Header(packet_id)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -35,7 +35,7 @@ class AckFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'AckFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.stream_id)
+        return cls(header.packet_id)
 
 
 class ExitFrame(Frame):
