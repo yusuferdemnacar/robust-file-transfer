@@ -1,10 +1,12 @@
+from __future__ import annotations
+import common
+
 import socket
 import logging
 import select
 import time
 import queue
 
-from common import Connection
 from packet import Packet
 
 # no functional code yet, but a lot of notes
@@ -106,10 +108,10 @@ class ConnectionManager:
         self.local_address, self.local_port, _, _ = self.socket.getsockname()
         logging.info(f"local address is {self.local_address} at port {self.local_port}")
 
-        self.connections: dict[int, Connection] = {}
-        self.last_updated: list[Connection] = []
+        self.connections: dict[int, common.Connection] = {}
+        self.last_updated: list[common.Connection] = []
 
-    def add_connection(self, connection: Connection):
+    def add_connection(self, connection: common.Connection):
         if connection.connection_id in self.connections:
             raise Exception("Cannot have two connections with the same ID at once")
         self.last_updated.append(connection)

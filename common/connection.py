@@ -1,9 +1,8 @@
+from __future__ import annotations
+import common
+
 from packet import Packet
 from frame import *
-from common import (
-    Stream,
-    ConnectionManager,
-)
 from abc import abstractmethod
 from collections import deque
 
@@ -15,7 +14,7 @@ class Connection:
 
     def __init__(
             self,
-            connection_manager: ConnectionManager,
+            connection_manager: common.ConnectionManager,
             remote_host: str,
             remote_port: int,
             connection_id: int,
@@ -24,7 +23,7 @@ class Connection:
         self.remote_host = remote_host
         self.remote_port = remote_port
         self.connection_id = connection_id
-        self.streams: dict[int, Stream] = {}
+        self.streams: dict[int, common.Stream] = {}
 
 
         # underlying socket instance can be shared across multiple connections (in case of server)
@@ -42,7 +41,8 @@ class Connection:
         self.max_inflight_bytes = self.max_packet_size * 32
         
         # send windowing
-        self.last_packet_id = random.randint(0, 2 ** 32 - 1)
+        self.last_sent_packet_id = 0
+        self.next_recv_packet_id = 1 # will be initialized upon receiving the first packet
         self.inflight_packets: dict[int, bytes] = {}# packet cache for retransmissions
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
 
@@ -66,6 +66,7 @@ class Connection:
         # (1) TODO: replay packets that need retransmission. count how many times a packet has been
         # transmitted. Connection dies after a certain amount of retransmissions.
         # (2) TODO: setting checksum (and ACK number) in packet objects
+        # (3) TODO: packet_id is probably also increased in empty packets
 
         # this is the amount of bytes that we are allowed to send out according to the current send window:
         max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
@@ -112,15 +113,15 @@ class Connection:
                 break
 
             # let's start packaging frames!
-            packet_id = self.last_packet_id + 1
+            packet_id = self.last_sent_packet_id + 1
             packet = Packet(Packet.Header(1, self.connection_id, packet_id, 0), to_be_packaged_frames) # TODO set checksum & ACK
-            self.last_packet_id = packet_id
+            self.last_sent_packet_id = packet_id
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
 
         if force_ack and len(to_be_flushed_packets) == 0:
-            packet = Packet(Packet.Header(1, self.connection_id, self.last_packet_id, 0), []) # TODO set checksum & ACK
+            packet = Packet(Packet.Header(1, self.connection_id, self.last_sent_packet_id, 0), []) # TODO set checksum & ACK
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
@@ -142,7 +143,10 @@ class Connection:
             # - version
             # - connectionID
             # - packet checksum
-        # TODO: generate an ack packet for this packet. IF the packet was not empty.
+            # - ack number
+        # TODO:  packet for this packet. IF the packet was not empty.
+        if len(packet.frames) > 0 and packet.header.packet_id == self.next_recv_packet_id:
+            self.next_recv_packet_id += 1
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.

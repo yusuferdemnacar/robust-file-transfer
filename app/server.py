@@ -83,6 +83,7 @@ def run_server(port: int):
             # if the checks pass, create a new ServerConnection
             conn = ServerConnection(connection_manager, event.address[0], event.address[1], connection_manager.next_connection_id())
             connection_manager.add_connection(conn)
+            # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
             if len(event.packet.frames) != 0:
                 for frame in event.packet.frames:
