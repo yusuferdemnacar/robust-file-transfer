@@ -155,6 +155,6 @@ class ConnectionManager:
             if connection_id not in self.connections:
                 yield UnknownConnectionIDEvent(packet, addrinfo)
             else:
-                self.connections[connection_id].update(packet)
+                self.connections[connection_id].update(packet, addrinfo)
                 self.last_updated.append(self.connections[connection_id])
 

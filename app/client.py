@@ -10,6 +10,7 @@ from frame import (
     ErrorFrame,
     DataFrame,
     ReadFrame,
+    AckFrame,
     Frame,
 )
 
@@ -50,6 +51,9 @@ class ClientConnection(Connection):
                             logging.info("File: \"" + name + "\" has the checksum " + frame.payload + ".")
                         case _:
                             logging.error("Unknown response type \"" + type + "\"")
+        if isinstance(frame, AckFrame):
+            # ignore that, is already handled in connection.py
+            pass
         else:
             logging.error("Recieved unknown frame with type \"" + frame.type + "\"")
             self.queue_frame(ErrorFrame(frame.header.stream_id, "not implemented yet"))
@@ -79,14 +83,14 @@ class ClientConnection(Connection):
         self.streamID = self.streamID + 1
         return self.streamID
     
-    def update_connection_id(self, packet: Packet):
+    def update_connection_id(self, packet: Packet, host, port):
         new_id = packet.header.connection_id
         if self.connection_id != 0:
             raise Exception("Can only update the connection id once in the beginning")
         self.connection_id = new_id
         del self.connection_manager.connections[0]
         self.connection_manager.connections[new_id] = self
-        self.update(packet)
+        self.update(packet, (host, port))
         self.connection_manager.last_updated.append(self)
 
 def run_client(host, port, files):
@@ -101,4 +105,4 @@ def run_client(host, port, files):
         if isinstance(event, UnknownConnectionIDEvent):
             # ignore unknown packet, except if connection.connection_id is zero
             if connection.connection_id == 0:
-                connection.update_connection_id(event.packet.header.connection_id)
+                connection.update_connection_id(event.packet, event.host, event.port)
