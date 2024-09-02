@@ -87,6 +87,7 @@ def run_server(port: int):
             connection_manager.add_connection(conn)
             # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
-            if len(event.packet.frames) != 0:
-                for frame in event.packet.frames:
-                    conn.handle_frame(frame)
+            conn.update(event.packet, (event.host, event.port))
+            #if len(event.packet.frames) != 0:
+                #for frame in event.packet.frames:
+                #    conn.handle_frame(frame)
