@@ -49,7 +49,7 @@ class ServerConnection(Connection):
             # TODO: handle cheksum checking
 
             # create a new stream if everything is fine
-            stream = Stream(frame.stream_id, frame.payload.data)
+            stream = Stream(frame.header.stream_id, frame.payload.data)
             self.streams[frame.header.stream_id] = stream
 
             # assuming 128 bytes chunks for now
@@ -83,7 +83,7 @@ def run_server(port: int):
                 continue
             logging.info(f"adding a new client connection...")
             # if the checks pass, create a new ServerConnection
-            conn = ServerConnection(connection_manager, event.address[0], event.address[1], connection_manager.next_connection_id())
+            conn = ServerConnection(connection_manager, event.host, event.port, connection_manager.next_connection_id())
             connection_manager.add_connection(conn)
             # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
