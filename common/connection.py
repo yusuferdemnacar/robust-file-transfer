@@ -146,9 +146,11 @@ class Connection:
             # - packet checksum
             # - ack number
         # TODO:  packet for this packet. IF the packet was not empty.
-        if len(packet.frames) > 0 and packet.header.packet_id == self.next_recv_packet_id:
+        if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
-            self.queue_frame(AckFrame(packet.header.packet_id))
+
+            if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
+                self.queue_frame(AckFrame(packet.header.packet_id))
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.
