@@ -144,9 +144,13 @@ class ConnectionManager:
             try:
                 packet = Packet.unpack(data)
                 connection_id = packet.header.connection_id
-            except Exception:
+            except Exception as e:
                 # ignore packets that are not parseable --> read again
+                logging.error("Could not parse the packet!")
+                logging.error(str(e))
                 continue
+
+            logging.info(f"received packet: {packet}")
 
             if connection_id not in self.connections:
                 yield UnknownConnectionIDEvent(packet, addrinfo)

@@ -126,6 +126,7 @@ class Connection:
             to_be_flushed_bytes += len(packet)
 
         for packet in to_be_flushed_packets:
+            logging.info(f"sending packet: {packet}")
             data = packet.pack()
             self.inflight_bytes += len(data)
             self.inflight_packets[packet.header.packet_id] = data
@@ -147,6 +148,7 @@ class Connection:
         # TODO:  packet for this packet. IF the packet was not empty.
         if len(packet.frames) > 0 and packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
+            self.queue_frame(AckFrame(packet.header.packet_id))
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.

@@ -61,7 +61,7 @@ class ReadFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header.type, header.stream_id, header.flags, header.offset, header.length, header.checksum, payload.data)
+        return cls(header.stream_id, header.flags, header.offset, header.length, header.checksum, payload.data)
 
 
 class WriteFrame(Frame):

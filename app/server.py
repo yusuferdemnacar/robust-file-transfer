@@ -74,12 +74,14 @@ def run_server(port: int):
         logging.info(event)
         # Send to different ServerConnections depending on header
         if isinstance(event, UnknownConnectionIDEvent):
+            logging.info("got an unknown connection id event")
             # if the connection id is not 0, then it is not a new connection request, ignore it
             if event.packet.header.connection_id != 0:
                 continue
             # if the connection id is 0, then it is a new connection request, and it should either have no frames, or a single ReadFrame
             if len(event.packet.frames) > 1 and not isinstance(event.packet.frames[0], ReadFrame):
                 continue
+            logging.info(f"adding a new client connection...")
             # if the checks pass, create a new ServerConnection
             conn = ServerConnection(connection_manager, event.address[0], event.address[1], connection_manager.next_connection_id())
             connection_manager.add_connection(conn)
