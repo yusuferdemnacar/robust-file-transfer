@@ -45,6 +45,11 @@ class Packet:
         def pack(self) -> bytes:
             return struct.pack('<BII3s', self.version, self.connection_id, self.packet_id, self.checksum.to_bytes(3, "little"))
 
+        @classmethod
+        def unpack(cls, packet_bytes: bytes):
+            version, connection_id, packet_id, checksum = struct.unpack('<BII3s', packet_bytes[:12])
+            return cls(version, connection_id, packet_id, checksum)
+
     def __init__(self, header: Header, frames: list) -> None:
         self.header = header
         self.frames = frames
@@ -65,7 +70,7 @@ class Packet:
 
     @classmethod
     def unpack(cls, packet_bytes: bytes) -> 'Packet':
-        header = struct.unpack('<BII3s', packet_bytes[:12])
+        header = Packet.Header.unpack(packet_bytes)
         frames = []
         frames_bytes = packet_bytes[12:]
         while frames_bytes:
