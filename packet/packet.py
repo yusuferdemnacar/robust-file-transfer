@@ -43,7 +43,7 @@ class Packet:
             return self.size
 
         def pack(self) -> bytes:
-            return struct.pack('<BII3s', self.version, self.connection_id, self.packet_id, self.checksum)
+            return struct.pack('<BII3s', self.version, self.connection_id, self.packet_id, self.checksum.to_bytes(3, "little"))
 
     def __init__(self, header: Header, frames: list) -> None:
         self.header = header
