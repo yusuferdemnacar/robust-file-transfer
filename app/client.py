@@ -21,7 +21,8 @@ class ClientConnection(Connection):
     def __init__(self, connection_manager, host, port, files: list[str]):
         self.readJobs = [] # (name, checkChecksum, checksum, fileHandle, streamID)
         self.commandJobs = [] # (type, name, streamID)
-        super().__init__(connection_manager, host, port)
+        self.connection_id = None # will be initialized upon reply from server
+        super().__init__(connection_manager, host, port, 0)
 
         for file in files:
             self.command_read(file)
@@ -54,7 +55,7 @@ class ClientConnection(Connection):
             self.queue_frame(ErrorFrame(frame.header.stream_id, "not implemented yet"))
     
     def command_read(self, name: str, offset = 0, length = 0, checkChecksum = False, checksum = 0):
-        fileIO = open(name, "b") # TODO continue read from partially completed file
+        fileIO = open(name, "w") # TODO continue read from partially completed file (maybe use "a" mode instead?)
         jobStreamID = self.next_streamID()
         flags = 1 if checkChecksum else 0
         self.readJobs.append((name, checkChecksum, checksum, fileIO, jobStreamID))
@@ -75,7 +76,7 @@ class ClientConnection(Connection):
         pass
 
     def next_streamID(self):
-        streamID = streamID + 1
+        self.streamID = self.streamID + 1
         return self.streamID
     
     def update_connection_id(self, packet: Packet):
