@@ -24,7 +24,7 @@ class Connection:
         self.remote_port = remote_port
         self.connection_id = connection_id
         self.streams: dict[int, common.Stream] = {}
-
+        self.retransmit_timeout = 5  # seconds
 
         # underlying socket instance can be shared across multiple connections (in case of server)
         self.last_flushed = None
@@ -43,24 +43,15 @@ class Connection:
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1 # will be initialized upon receiving the first packet
-        self.inflight_packets: dict[int, bytes] = {}# packet cache for retransmissions
+        self.inflight_packets = deque() # packet cache for retransmissions
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
 
 
-    def flush(self, force_ack=False):
+    def flush(self):
         """
         This is the only function that actually causes the transmission of data.
         It builds as many packets as possible from the frame queue without exceeding the send
-        window (max_inflight_bytes) of this connection. 
-
-        force_ack=True guarantees that at least one packet is sent with an updated acknowledgement number,
-        even if the send window does not allow it, or if the frame queue is empty. If necessary, an empty
-        packet will be generated (just a global header). Empty packets do not increase the packet_id, since
-        no payload is transmitted.
-
-        If force_ack is False, one or more packets will be sent out if there are outstanding frames in
-        the queue, and if the send window window allows sending that packet. Otherwise, no packet will be
-        sent, until the next call to flush().
+        window (max_inflight_bytes) of this connection.
         """
 
         # (1) TODO: replay packets that need retransmission. count how many times a packet has been
@@ -119,18 +110,15 @@ class Connection:
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
-
-        if force_ack and len(to_be_flushed_packets) == 0:
-            packet = Packet(Packet.Header(1, self.connection_id, self.last_sent_packet_id, 0), []) # TODO set checksum & ACK
-            to_be_flushed_packets.append(packet)
-            to_be_flushed_bytes += len(packet)
-
         for packet in to_be_flushed_packets:
-            logging.info(f"sending packet: {packet}")
             data = packet.pack()
             self.inflight_bytes += len(data)
-            self.inflight_packets[packet.header.packet_id] = data
+            self.inflight_packets.append((time.time(), packet))
+            logging.info(f"sending packet: {self.inflight_packets[-1]}")
             self.connection_manager.socket.sendto(data, (self.remote_host, self.remote_port))
+
+    def current_retransmit_timeout(self, current_time):
+        return max(self.inflight_packets[0][0] + self.retransmit_timeout - current_time, 0)
 
     def update(self, packet: Packet, addrinfo) -> float:
         # this function applies updates to the connection/streams from a packets.
@@ -149,8 +137,12 @@ class Connection:
         if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
 
+            # if the packet contained at least one frame other than AckFrame, send a response
             if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
                 self.queue_frame(AckFrame(packet.header.packet_id))
+
+
+
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.

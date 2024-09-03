@@ -129,13 +129,18 @@ class ConnectionManager:
                 self.last_updated.remove(con)
 
             #timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
-            timeout = None # TODO: timeouts and retransmissions
+            current_time = time.time()
+            timeout, timedout_connection = min([(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()],
+                                               key=lambda tt: tt[0],
+                                               default=(None, None))
+            logging.info(f"select: {timeout} {timedout_connection}")
             rlist, _, _ = select.select([self.socket], [], [], timeout)
 
-            #if len(rlist) == 0:
+            if len(rlist) == 0:
                 # timeout occured!
-                #timedout_connection.update(None)
-                #continue
+                timedout_connection.update(None, None)
+                self.last_updated.append(timedout_connection)
+                continue
 
             # 64kib is the maximum ip payload size
             data, addrinfo = self.socket.recvfrom(65536)
