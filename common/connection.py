@@ -114,14 +114,14 @@ class Connection:
 
             # let's start packaging frames!
             packet_id = self.last_sent_packet_id + 1
-            packet = Packet(Packet.Header(1, self.connection_id, packet_id, 0), to_be_packaged_frames) # TODO set checksum & ACK
+            packet = Packet(1, self.connection_id, packet_id, to_be_packaged_frames) # TODO set ACK
             self.last_sent_packet_id = packet_id
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 
 
         if force_ack and len(to_be_flushed_packets) == 0:
-            packet = Packet(Packet.Header(1, self.connection_id, self.last_sent_packet_id, 0), []) # TODO set checksum & ACK
+            packet = Packet(1, self.connection_id, self.last_sent_packet_id, []) # TODO set ACK
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
 

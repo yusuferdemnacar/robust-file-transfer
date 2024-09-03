@@ -2,6 +2,7 @@ import struct
 from frame.command import *
 from frame.data import *
 from frame.control import *
+from zlib import crc32
 
 frame_types = {
     0: AckFrame,
@@ -50,9 +51,10 @@ class Packet:
             version, connection_id, packet_id, checksum = struct.unpack('<BII3s', packet_bytes[:12])
             return cls(version, connection_id, packet_id, checksum)
 
-    def __init__(self, version: int, connection_id: int, packet_id: int, checksum: int, frames: list) -> None:
-        self.header = Packet.Header(version, connection_id, packet_id, checksum)
+    def __init__(self, version: int, connection_id: int, packet_id: int, frames: list) -> None:
+        self.header = Packet.Header(version, connection_id, packet_id, 0)
         self.frames = frames
+        self.header.checksum = self.calculateChecksum()
 
     def __repr__(self) -> str:
         fields = ', '.join(f'{key}={value}' for key,
@@ -67,6 +69,11 @@ class Packet:
 
     def pack(self) -> bytes:
         return self.header.pack() + b''.join(frame.pack() for frame in self.frames)
+    
+    def createCopy(header: Header, frames: list):
+        packet = Packet(header.version, header.connection_id, header.packet_id, frames)
+        packet.header.checksum = header.checksum
+        return packet
 
     @classmethod
     def unpack(cls, packet_bytes: bytes) -> 'Packet':
@@ -78,4 +85,9 @@ class Packet:
             frame = frame_types[frame_type].unpack(frames_bytes)
             frames.append(frame)
             frames_bytes = frames_bytes[len(frame):]
-        return cls(header.version, header.connection_id, header.packet_id, header.checksum, frames)
+        return cls.createCopy(header, frames)
+
+    def calculateChecksum(self):
+            data = self.pack()
+            data = b"".join([data[:9], bytes(b"\x00\x00\x00"), data[12:]])
+            return crc32(data)
