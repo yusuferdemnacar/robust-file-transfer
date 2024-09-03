@@ -50,8 +50,8 @@ class Packet:
             version, connection_id, packet_id, checksum = struct.unpack('<BII3s', packet_bytes[:12])
             return cls(version, connection_id, packet_id, checksum)
 
-    def __init__(self, header: Header, frames: list) -> None:
-        self.header = header
+    def __init__(self, version: int, connection_id: int, packet_id: int, checksum: int, frames: list) -> None:
+        self.header = Packet.Header(version, connection_id, packet_id, checksum)
         self.frames = frames
 
     def __repr__(self) -> str:
@@ -78,4 +78,4 @@ class Packet:
             frame = frame_types[frame_type].unpack(frames_bytes)
             frames.append(frame)
             frames_bytes = frames_bytes[len(frame):]
-        return cls(header, frames)
+        return cls(header.version, header.connection_id, header.packet_id, header.checksum, frames)
