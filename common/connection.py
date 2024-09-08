@@ -10,15 +10,16 @@ import time
 import logging
 import random
 
+
 class Connection:
 
     def __init__(
-            self,
-            connection_manager: common.ConnectionManager,
-            remote_host: str,
-            remote_port: int,
-            connection_id: int,
-        ) -> None:
+        self,
+        connection_manager: common.ConnectionManager,
+        remote_host: str,
+        remote_port: int,
+        connection_id: int,
+    ) -> None:
         self.connection_manager = connection_manager
         self.remote_host = remote_host
         self.remote_port = remote_port
@@ -37,15 +38,14 @@ class Connection:
         self.frame_queue = deque()
 
         # start out with 32 max-sized packets, usually the receive buffer for sockets under linux can hold that amount
-        self.max_packet_size = 1500 - 40 - 8 # TODO do MTU discovery?
+        self.max_packet_size = 1500 - 40 - 8  # TODO do MTU discovery?
         self.max_inflight_bytes = self.max_packet_size * 32
-        
+
         # send windowing
         self.last_sent_packet_id = 0
-        self.next_recv_packet_id = 1 # will be initialized upon receiving the first packet
-        self.inflight_packets = deque() # packet cache for retransmissions
+        self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
+        self.inflight_packets = deque()  # packet cache for retransmissions
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
-
 
     def flush(self):
         """
@@ -79,18 +79,21 @@ class Connection:
                     break
 
                 # decide if we can package one more frame:
-                predicted_packet_size = global_header_size + to_be_packaged_bytes + len(self.frame_queue[0])
+                predicted_packet_size = global_header_size + \
+                    to_be_packaged_bytes + len(self.frame_queue[0])
 
                 if predicted_packet_size > self.max_packet_size:
                     # this should only happen if the to_be_packaged_frames list is not empty, otherwise...
                     if len(to_be_packaged_frames) == 0:
-                        logging.error(f"The frame {self.frame_queue[0]} cannot be sent without exceeding the maximum packet size!")
+                        logging.error(
+                            f"The frame {self.frame_queue[0]} cannot be sent without exceeding the maximum packet size!")
                         # since we can do nothing here, the ill-sized frame is now clogging the queue
                     break
                 elif to_be_flushed_bytes + predicted_packet_size > max_flush_bytes:
                     # let's not trust our own implementation and log an error in case the send window size is too small.
                     if len(to_be_packaged_frames) == 0 and predicted_packet_size > self.max_inflight_bytes:
-                        logging.error(f"The frame {self.frame_queue[0]} cannot be sent without exceeding the send window!")
+                        logging.error(
+                            f"The frame {self.frame_queue[0]} cannot be sent without exceeding the send window!")
                         # since we can do nothing here, the ill-sized frame/the ill-sized send window is now clogging the queue
                 else:
                     # we can add this frame to the packet!
@@ -105,7 +108,8 @@ class Connection:
 
             # let's start packaging frames!
             packet_id = self.last_sent_packet_id + 1
-            packet = Packet(1, self.connection_id, packet_id, to_be_packaged_frames) # TODO set ACK
+            packet = Packet(1, self.connection_id, packet_id,
+                            to_be_packaged_frames)  # TODO set ACK
             self.last_sent_packet_id = packet_id
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
@@ -115,7 +119,8 @@ class Connection:
             self.inflight_bytes += len(data)
             self.inflight_packets.append((time.time(), packet))
             logging.info(f"sending packet: {self.inflight_packets[-1]}")
-            self.connection_manager.socket.sendto(data, (self.remote_host, self.remote_port))
+            self.connection_manager.socket.sendto(
+                data, (self.remote_host, self.remote_port))
 
     def current_retransmit_timeout(self, current_time):
         return max(self.inflight_packets[0][0] + self.retransmit_timeout - current_time, 0)
@@ -123,30 +128,35 @@ class Connection:
     def update(self, packet: Packet, addrinfo) -> float:
         # this function applies updates to the connection/streams from a packets.
 
+        if (packet, addrinfo) == (None, None):
+            # this is a timeout
+            self.queue_frame(ExitFrame())
+            self.connection_manager.remove_connection(self)
+            return
+
         # TODO: update remote ip/port if changed.
 
         # TODO: get current timestamp and determine if retransmission is outstanding.
         # TODO: if retransmission is necessary, mark the packet for retransmission.
 
         # TODO: handle global packet header:
-            # - version
-            # - connectionID
-            # - packet checksum
-            # - ack number
+        # - version
+        # - connectionID
+        # - packet checksum
+        # - ack number
         # TODO:  packet for this packet. IF the packet was not empty.
         if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
 
-            # if the packet contained at least one frame other than AckFrame, send a response
-            if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
+            # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
+            if next((frame for frame in packet.frames if
+                     (type(frame) != AckFrame and
+                      type(frame) != ExitFrame)
+                     ), None):
                 self.queue_frame(AckFrame(packet.header.packet_id))
-
-
-
 
         # TODO: look for ack number in packet and move send window accordingly.
         # TODO: detect increase/decrease of send window size.
-
 
         for frame in packet.frames:
             # TODO: handle some of the control frames here:
@@ -217,7 +227,8 @@ class Connection:
             else:
                 # we can still schedule it, but let's print a warning...
                 self.frame_queue.append(frame)
-                logging.warning(f"Scheduled unknown frame type {frame} for transmission")
+                logging.warning(
+                    f"Scheduled unknown frame type {frame} for transmission")
 
     def is_closed(self):
         # returns if this connection is closed

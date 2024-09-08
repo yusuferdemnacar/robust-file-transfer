@@ -1,18 +1,11 @@
 from common import (
     ConnectionManager,
     Connection,
-    UnknownConnectionIDEvent
+    UnknownConnectionIDEvent,
+    UpdateEvent,
 )
 from packet import Packet
-from frame import (
-    AnswerFrame,
-    ChecksumFrame,
-    ErrorFrame,
-    DataFrame,
-    ReadFrame,
-    AckFrame,
-    Frame,
-)
+from frame import *
 
 import logging
 
@@ -31,6 +24,10 @@ class ClientConnection(Connection):
             self.command_read(file)
 
     def handle_frame(self, frame: Frame):
+        if isinstance(frame, ExitFrame):
+            logging.info("Server closed connection.")
+            self.connection_manager.remove_connection(self)
+            return
         if isinstance(frame, DataFrame):
             # logging.info("Recieved data frame with stream id " +
             #              str(frame.header.stream_id))
@@ -122,3 +119,6 @@ def run_client(host, port, files):
             if connection.connection_id == 0:
                 connection.update_connection_id(
                     event.packet, event.host, event.port)
+
+        if isinstance(event, UpdateEvent):
+            event.connection.update(event.packet, (event.host, event.port))

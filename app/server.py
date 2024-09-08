@@ -3,15 +3,10 @@ from common import (
     Connection,
     ConnectionManager,
     UnknownConnectionIDEvent,
+    UpdateEvent,
 )
 from packet import Packet
-from frame import (
-    AckFrame,
-    ErrorFrame,
-    DataFrame,
-    ReadFrame,
-    Frame,
-)
+from frame import *
 
 import logging
 import pathlib
@@ -29,6 +24,12 @@ class ServerConnection(Connection):
 
         if isinstance(frame, AckFrame):
             pass
+            return
+
+        if isinstance(frame, ExitFrame):
+            logging.info("got an exit frame on connection id " +
+                         str(self.connection_id))
+            self.connection_manager.remove_connection(self)
             return
 
         if isinstance(frame, ReadFrame):
@@ -98,3 +99,7 @@ def run_server(port: int):
             # if len(event.packet.frames) != 0:
             # for frame in event.packet.frames:
             #    conn.handle_frame(frame)
+
+        if isinstance(event, UpdateEvent):
+            logging.info("got an update event")
+            event.connection.update(event.packet, (event.host, event.port))

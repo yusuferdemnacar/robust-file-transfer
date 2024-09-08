@@ -87,9 +87,16 @@ class ClientConnection(Connection):
 """
 
 
-
 class UnknownConnectionIDEvent:
     def __init__(self, packet, addrinfo):
+        self.packet: Packet = packet
+        self.host: str = addrinfo[0]
+        self.port: int = addrinfo[1]
+
+
+class UpdateEvent:
+    def __init__(self, conn, packet, addrinfo):
+        self.connection: common.Connection = conn
         self.packet: Packet = packet
         self.host: str = addrinfo[0]
         self.port: int = addrinfo[1]
@@ -102,33 +109,39 @@ class ConnectionManager:
 
         # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
         self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        self.socket.settimeout(10) # TODO: set socket timeout option value to reasonable value
+        # TODO: set socket timeout option value to reasonable value
+        self.socket.settimeout(10)
         self.socket.bind(("", local_port))
 
         self.local_address, self.local_port, _, _ = self.socket.getsockname()
-        logging.info(f"local address is {self.local_address} at port {self.local_port}")
+        logging.info(
+            f"local address is {self.local_address} at port {self.local_port}")
 
         self.connections: dict[int, common.Connection] = {}
         self.last_updated: list[common.Connection] = []
 
     def add_connection(self, connection: common.Connection):
         if connection.connection_id in self.connections:
-            raise Exception("Cannot have two connections with the same ID at once")
+            raise Exception(
+                "Cannot have two connections with the same ID at once")
         self.last_updated.append(connection)
         self.connections[connection.connection_id] = connection
+
+    def remove_connection(self, connection: common.Connection):
+        del self.connections[connection.connection_id]
 
     def next_connection_id(self):
         return max(self.connections.keys(), default=0) + 1
 
     def loop(self):
 
-        while True: # TODO: termination condition
+        while True:  # TODO: termination condition
 
             for con in self.last_updated:
                 con.flush()
                 self.last_updated.remove(con)
 
-            #timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
+            # timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
             current_time = time.time()
             timeout, timedout_connection = min([(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()],
                                                key=lambda tt: tt[0],
@@ -160,6 +173,7 @@ class ConnectionManager:
             if connection_id not in self.connections:
                 yield UnknownConnectionIDEvent(packet, addrinfo)
             else:
-                self.connections[connection_id].update(packet, addrinfo)
-                self.last_updated.append(self.connections[connection_id])
-
+                yield UpdateEvent(self.connections[connection_id], packet, addrinfo)
+                # if the update did not remove the connection, add it to the last_updated list
+                if connection_id in self.connections:
+                    self.last_updated.append(self.connections[connection_id])
