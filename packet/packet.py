@@ -48,7 +48,8 @@ class Packet:
 
         @classmethod
         def unpack(cls, packet_bytes: bytes):
-            version, connection_id, packet_id, checksum = struct.unpack('<BII3s', packet_bytes[:12])
+            version, connection_id, packet_id, checksum = struct.unpack(
+                '<BII3s', packet_bytes[:cls.size])
             return cls(version, connection_id, packet_id, checksum)
 
     def __init__(self, version: int, connection_id: int, packet_id: int, frames: list) -> None:
@@ -63,31 +64,44 @@ class Packet:
 
     def __str__(self) -> str:
         return self.__repr__()
-    
+
     def __len__(self) -> int:
         return self.header.size + sum([len(frame) for frame in self.frames])
 
     def pack(self) -> bytes:
         return self.header.pack() + b''.join(frame.pack() for frame in self.frames)
-    
+
     def createCopy(header: Header, frames: list):
-        packet = Packet(header.version, header.connection_id, header.packet_id, frames)
+        packet = Packet(header.version, header.connection_id,
+                        header.packet_id, frames)
         packet.header.checksum = header.checksum
         return packet
 
     @classmethod
     def unpack(cls, packet_bytes: bytes) -> 'Packet':
-        header = Packet.Header.unpack(packet_bytes)
+        try:
+            header = Packet.Header.unpack(packet_bytes[:Packet.Header.size])
+        except struct.error:
+            raise ValueError("Invalid packet header")
         frames = []
-        frames_bytes = packet_bytes[12:]
+        frames_bytes = packet_bytes[Packet.Header.size:]
         while frames_bytes:
             frame_type = frames_bytes[0]
-            frame = frame_types[frame_type].unpack(frames_bytes)
+            frame_header = frame_types[frame_type].Header.unpack(
+                frames_bytes[:frame_types[frame_type].Header.size])
+            # if freame has a payload
+            if hasattr(frame_header, "payload_length"):
+                frame = frame_types[frame_type].unpack(
+                    frames_bytes[:frame_types[frame_type].Header.size + frame_header.payload_length])
+            else:
+                frame = frame_types[frame_type].unpack(
+                    frames_bytes[:frame_types[frame_type].Header.size])
             frames.append(frame)
             frames_bytes = frames_bytes[len(frame):]
         return cls.createCopy(header, frames)
 
     def calculateChecksum(self):
-            data = self.pack()
-            data = b"".join([data[:9], bytes(b"\x00\x00\x00"), data[12:]])
-            return crc32(data)
+        data = self.pack()
+        data = b"".join([data[:Packet.Header.size-3],
+                        bytes(b"\x00\x00\x00"), data[Packet.Header.size:]])
+        return crc32(data)
