@@ -26,13 +26,13 @@ class ServerConnection(Connection):
             pass
             return
 
-        if isinstance(frame, ExitFrame):
+        elif isinstance(frame, ExitFrame):
             logging.info("got an exit frame on connection id " +
                          str(self.connection_id))
             self.connection_manager.remove_connection(self)
             return
 
-        if isinstance(frame, ReadFrame):
+        elif isinstance(frame, ReadFrame):
             # if ReadFrame with an existing stream id is received, queue an ErrorFrame
             if frame.header.stream_id in self.streams:
                 # check error codes
@@ -65,7 +65,14 @@ class ServerConnection(Connection):
                     stream.file.seek(i)
                     data = stream.file.read(128)
                     self.queue_frame(DataFrame(stream.stream_id, i, data))
+            # send an empty DataFrame to signal the end of the stream
+            self.queue_frame(DataFrame(stream.stream_id, i, b""))
             return
+
+        else:
+            logging.error(
+                "Recieved unknown frame with type \"" + str(frame.type) + "\"")
+            self.queue_frame(ErrorFrame(0, "not implemented yet"))
 
 
 # Socket -> ConnectionManager
