@@ -52,14 +52,14 @@ class ExitFrame(Frame):
 
         @classmethod
         def unpack(cls, header_bytes: bytes) -> 'ExitFrame.Header':
-            type = struct.unpack('<B', header_bytes)
+            type = struct.unpack('<B', header_bytes)[0]
             if type != ExitFrame.type:
                 raise ValueError(
                     f'Invalid header type: {type} (expected {ExitFrame.type})')
             return cls()
 
     def __init__(self) -> None:
-        self.header = self.Header(self.type)
+        self.header = self.Header()
 
     def __len__(self) -> int:
         return len(self.header)
@@ -97,8 +97,7 @@ class ConnectionIDChangeFrame(Frame):
             return cls(old_connection_id, new_connection_id)
 
     def __init__(self, old_connection_id: int, new_connection_id: int) -> None:
-        self.header = self.Header(
-            self.type, old_connection_id, new_connection_id)
+        self.header = self.Header(old_connection_id, new_connection_id)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -134,7 +133,7 @@ class FlowControlFrame(Frame):
             return cls(window_size)
 
     def __init__(self, window_size: int) -> None:
-        self.header = self.Header(self.type, window_size)
+        self.header = self.Header(window_size)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -187,7 +186,7 @@ class AnswerFrame(Frame):
             return cls(payload_bytes)
 
     def __init__(self, stream_id: int, payload: bytes) -> None:
-        self.header = self.Header(self.type, stream_id, len(payload))
+        self.header = self.Header(stream_id, len(payload))
         self.payload = self.Payload(payload)
 
     def __len__(self) -> int:
