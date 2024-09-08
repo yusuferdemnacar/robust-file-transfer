@@ -70,7 +70,7 @@ class ExitFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'ExitFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type)
+        return cls()
 
 
 class ConnectionIDChangeFrame(Frame):
@@ -97,7 +97,8 @@ class ConnectionIDChangeFrame(Frame):
             return cls(old_connection_id, new_connection_id)
 
     def __init__(self, old_connection_id: int, new_connection_id: int) -> None:
-        self.header = self.Header(self.type, old_connection_id, new_connection_id)
+        self.header = self.Header(
+            self.type, old_connection_id, new_connection_id)
 
     def __len__(self) -> int:
         return len(self.header)
@@ -108,7 +109,7 @@ class ConnectionIDChangeFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'ConnectionIDChangeFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.old_connection_id, header.new_connection_id)
+        return cls(header.old_connection_id, header.new_connection_id)
 
 
 class FlowControlFrame(Frame):
@@ -144,7 +145,7 @@ class FlowControlFrame(Frame):
     @classmethod
     def unpack(cls, frame_bytes: bytes) -> 'FlowControlFrame':
         header = cls.Header.unpack(frame_bytes[:cls.Header.size])
-        return cls(header.type, header.window_size)
+        return cls(header.window_size)
 
 
 class AnswerFrame(Frame):
@@ -202,7 +203,7 @@ class AnswerFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header.type, header.stream_id, payload.data)
+        return cls(header.stream_id, payload.data)
 
 
 class ErrorFrame(Frame):
@@ -223,7 +224,7 @@ class ErrorFrame(Frame):
         def unpack(cls, header_bytes: bytes) -> 'ErrorFrame.Header':
             type, stream_id, payload_length = struct.unpack(
                 '<BHH', header_bytes)
-            if type != cls.type:
+            if type != ErrorFrame.type:
                 raise ValueError(
                     f'Invalid header type: {type} (expected {cls.type})')
             return cls(stream_id, payload_length)
@@ -260,4 +261,4 @@ class ErrorFrame(Frame):
         if len(payload) != header.payload_length:
             raise ValueError(
                 f'Invalid payload length: {len(payload)} (expected {header.payload_length})')
-        return cls(header.type, header.stream_id, payload.data)
+        return cls(header.stream_id, payload.data)
