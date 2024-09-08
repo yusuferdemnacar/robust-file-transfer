@@ -28,7 +28,7 @@ class ClientConnection(Connection):
             logging.info("Server closed connection.")
             self.connection_manager.remove_connection(self)
             return
-        if isinstance(frame, DataFrame):
+        elif isinstance(frame, DataFrame):
             # logging.info("Recieved data frame with stream id " +
             #              str(frame.header.stream_id))
             for i in range(len(self.readJobs)):
@@ -43,7 +43,7 @@ class ClientConnection(Connection):
                     break
                 fileHandle.write(frame.payload.data)
                 break
-        if isinstance(frame, AnswerFrame):
+        elif isinstance(frame, AnswerFrame):
             for i in range(len(self.commandJobs)):
                 job = type, name, jobStreamID = self.commandJobs[i]
                 if frame.header.stream_id == jobStreamID:
@@ -55,7 +55,7 @@ class ClientConnection(Connection):
                         case _:
                             logging.error(
                                 "Unknown response type \"" + type + "\"")
-        if isinstance(frame, AckFrame):
+        elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass
         else:
