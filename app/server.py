@@ -16,6 +16,7 @@ from frame import (
 import logging
 import pathlib
 
+
 class ServerConnection(Connection):
 
     def __init__(self, connection_manager: ConnectionManager, host: str, port: int, connection_id: int):
@@ -33,33 +34,37 @@ class ServerConnection(Connection):
         if isinstance(frame, ReadFrame):
             # if ReadFrame with an existing stream id is received, queue an ErrorFrame
             if frame.header.stream_id in self.streams:
-                self.queue_frame(ErrorFrame(0, "stream id already exists")) # check error codes
+                # check error codes
+                self.queue_frame(ErrorFrame(0, "stream id already exists"))
                 return
-
             # if the path does not exist, send an error frame
             if not pathlib.Path(frame.payload.data).exists():
                 self.queue_frame(ErrorFrame(0, "file not found"))
                 return
-
             # check if the offset+length is greater than the file size
             if (frame.header.offset + frame.header.length) > pathlib.Path(frame.payload.data).stat().st_size:
-                self.queue_frame(ErrorFrame(0, "offset+length greater than file size"))
+                self.queue_frame(ErrorFrame(
+                    0, "offset+length greater than file size"))
                 return
-            
             # TODO: handle cheksum checking
 
             # create a new stream if everything is fine
             stream = Stream(frame.header.stream_id, frame.payload.data)
             self.streams[frame.header.stream_id] = stream
 
-            # assuming 128 bytes chunks for now
-            for i in range(0, frame.header.length, 128):
-                stream.file.seek(frame.header.offset + i)
-                data = stream.file.read(128)
-                self.queue_frame(DataFrame(stream.stream_id, frame.header.offset + i, data)),
+            # if the frame has no offset and length, send the entire file
+            # TODO: check if this is the correct way to handle this
+            if frame.header.length == 0:
+                for i in range(0, stream.file_size, 128):
+                    stream.file.seek(i)
+                    data = stream.file.read(128)
+                    self.queue_frame(DataFrame(stream.stream_id, i, data))
+            else:
+                for i in range(frame.header.offset, frame.header.offset + frame.header.length, 128):
+                    stream.file.seek(i)
+                    data = stream.file.read(128)
+                    self.queue_frame(DataFrame(stream.stream_id, i, data))
             return
-                
-
 
 
 # Socket -> ConnectionManager
@@ -68,7 +73,8 @@ class ServerConnection(Connection):
 
 def run_server(port: int):
     connection_manager = ConnectionManager(local_port=port)
-    logging.info(f"server listening at {connection_manager.local_address} on port {connection_manager.local_port}")
+    logging.info(
+        f"server listening at {connection_manager.local_address} on port {connection_manager.local_port}")
 
     for event in connection_manager.loop():
         logging.info(event)
@@ -83,11 +89,12 @@ def run_server(port: int):
                 continue
             logging.info(f"adding a new client connection...")
             # if the checks pass, create a new ServerConnection
-            conn = ServerConnection(connection_manager, event.host, event.port, connection_manager.next_connection_id())
+            conn = ServerConnection(
+                connection_manager, event.host, event.port, connection_manager.next_connection_id())
             connection_manager.add_connection(conn)
             # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
             conn.update(event.packet, (event.host, event.port))
-            #if len(event.packet.frames) != 0:
-                #for frame in event.packet.frames:
-                #    conn.handle_frame(frame)
+            # if len(event.packet.frames) != 0:
+            # for frame in event.packet.frames:
+            #    conn.handle_frame(frame)
