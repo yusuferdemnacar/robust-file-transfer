@@ -134,8 +134,13 @@ class Connection:
             self.connection_manager.remove_connection(self)
             return
 
-        # TODO: update remote ip/port if changed.
-
+        if self.remote_host != addrinfo[0]:
+            logging.info(f"Host of connection {self.connection_id} changed from {self.remote_host} to {addrinfo[0]}")
+            self.remote_host = addrinfo[0]
+        if self.remote_port != addrinfo[1]:
+            logging.info(f"Port of connection {self.connection_id} changed from {self.remote_port} to {addrinfo[1]}")
+            self.remote_port = addrinfo[1]
+            
         # TODO: get current timestamp and determine if retransmission is outstanding.
         # TODO: if retransmission is necessary, mark the packet for retransmission.
 

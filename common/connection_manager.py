@@ -173,14 +173,7 @@ class ConnectionManager:
             if connection_id not in self.connections:
                 yield UnknownConnectionIDEvent(packet, addrinfo)
             else:
-                updateEvent = UpdateEvent(self.connections[connection_id], packet, addrinfo)
-                if self.connections[connection_id].remote_host != updateEvent.host:
-                    self.connections[connection_id].remote_host = updateEvent.host
-                    logging.info(f"Host of connection {connection_id} changed from {self.connections[connection_id].remote_host} to {updateEvent.host}")
-                if self.connections[connection_id].remote_port != updateEvent.port:
-                    self.connections[connection_id].remote_port = updateEvent.port
-                    logging.info(f"Port of connection {connection_id} changed from {self.connections[connection_id].remote_port} to {updateEvent.port}")
-                yield updateEvent
+                yield UpdateEvent(self.connections[connection_id], packet, addrinfo)
                 # if the update did not remove the connection, add it to the last_updated list
                 if connection_id in self.connections:
                     self.last_updated.append(self.connections[connection_id])
