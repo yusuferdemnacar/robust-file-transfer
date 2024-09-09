@@ -13,9 +13,8 @@ class ClientConnection(Connection):
     streamID = 0  # Returns 1 first time due to returning ++0
 
     def __init__(self, connection_manager, host, port, files: list[str]):
-        # (name, checkChecksum, checksum, fileHandle, streamID)
-        self.readJobs = []
-        self.commandJobs = []  # (type, name, streamID)
+        self.readJobs = {} # streamID => (name, checkChecksum, checksum, fileHandle)
+        self.commandJobs = {}  # streamID => (type, name)
         self.connection_id = None  # will be initialized upon reply from server
         super().__init__(connection_manager, host, port, 0)
 
@@ -28,43 +27,39 @@ class ClientConnection(Connection):
             self.connection_manager.remove_connection(self)
             return
         elif isinstance(frame, DataFrame):
+            streamID = frame.header.stream_id
             # logging.info("Recieved data frame with stream id " +
             #              str(frame.header.stream_id))
-            for i in range(len(self.readJobs)):
-                job = name, checkChecksum, checksum, fileHandle, jobStreamID = self.readJobs[
-                    i]
-                if jobStreamID != frame.header.stream_id:
-                    continue
+            if streamID in self.readJobs:
+                name, checkChecksum, checksum, fileHandle = self.readJobs[streamID]
                 if frame.header.payload_length == 0:
-                    self.readJobs.remove(job)
+                    self.readJobs.pop(streamID)
                     # TODO check checksum
                     logging.info("Transfer of " + name + " completed.")
-                    break
-                fileHandle.write(frame.payload.data)
-                break
+                else:
+                    fileHandle.write(frame.payload.data)
         elif isinstance(frame, AnswerFrame):
-            for i in range(len(self.commandJobs)):
-                job = type, name, jobStreamID = self.commandJobs[i]
-                if frame.header.stream_id == jobStreamID:
-                    self.commandJobs.remove(job)
-                    match type:
-                        case ChecksumFrame.type:
-                            logging.info(
-                                "File: \"" + name + "\" has the checksum " + frame.payload + ".")
-                        case _:
-                            logging.error(
-                                "Unknown response type \"" + type + "\"")
+            streamID = frame.header.stream_id
+            if streamID in self.commandJobs:
+                type, name = self.commandJobs[streamID]
+                self.commandJobs.pop(streamID)
+                match type:
+                    case ChecksumFrame.type:
+                        logging.info(
+                            "File: \"" + name + "\" has the checksum " + frame.payload + ".")
+                    case _:
+                        logging.error(
+                            "Unknown response type \"" + type + "\"")
         elif isinstance(frame, ErrorFrame):
-            for type, name, streamID in self.readJobs:
-                if streamID == frame.header.stream_id:
-                    self.readJobs.remove((type, name, streamID))
-                    logging.critical(
-                        f"Read job with streamID {streamID} has failed with message: {frame.payload.data}")
-            for type, name, streamID in self.commandJobs:
-                if streamID == frame.header.stream_id:
-                    self.commandJobs.remove((type, name, streamID))
-                    logging.critical(
-                        f"Command of type {type} has failed with message: {frame.payload.data}")
+            streamID = frame.header.stream_id
+            if streamID in self.commandJobs:
+                type, name = self.commandJobs[streamID]
+                self.readJobs.pop(streamID)
+                logging.critical(f"Command of type {type} on \"{name}\" has failed with message: {frame.payload.dataa}")
+            if streamID in self.readJobs:
+                name, checkChecksum, checksum, fileHandle = self.readJobs[streamID]
+                self.commandJobs.pop(streamID)
+                logging.critical(f"Read job of \"{name}\" with streamID {streamID} has failed with message: {frame.payload.data}")
         elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass
@@ -79,14 +74,13 @@ class ClientConnection(Connection):
         fileIO = open(name, "wb")
         jobStreamID = self.next_streamID()
         flags = 1 if checkChecksum else 0
-        self.readJobs.append(
-            (name, checkChecksum, checksum, fileIO, jobStreamID))
+        self.readJobs[jobStreamID] = (name, checkChecksum, checksum, fileIO)
         self.queue_frame(ReadFrame(jobStreamID, flags,
                          offset, length, checksum, name))
 
     def command_checksum(self, name: str):
         jobStreamID = self.next_streamID()
-        self.commandJobs.append((ChecksumFrame.type, name, jobStreamID))
+        self.commandJobs[jobStreamID] = (ChecksumFrame.type, name, jobStreamID)
         self.queue_frame(ChecksumFrame(jobStreamID, name))
 
     def command_write(self, name: str, offset=0, length=0):
