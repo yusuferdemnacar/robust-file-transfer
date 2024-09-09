@@ -58,11 +58,13 @@ class ClientConnection(Connection):
             for type, name, streamID in self.readJobs:
                 if streamID == frame.header.stream_id:
                     self.readJobs.remove((type, name, streamID))
-                    logging.critical(f"Read job with streamID {streamID} has failed with message: {frame.payload.data}")
+                    logging.critical(
+                        f"Read job with streamID {streamID} has failed with message: {frame.payload.data}")
             for type, name, streamID in self.commandJobs:
                 if streamID == frame.header.stream_id:
                     self.commandJobs.remove((type, name, streamID))
-                    logging.critical(f"Command of type {type} has failed with message: {frame.payload.dataa}")
+                    logging.critical(
+                        f"Command of type {type} has failed with message: {frame.payload.data}")
         elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass

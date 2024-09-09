@@ -94,6 +94,13 @@ class UnknownConnectionIDEvent:
         self.port: int = addrinfo[1]
 
 
+class ZeroConnectionIDEvent:
+    def __init__(self, packet, addrinfo):
+        self.packet: Packet = packet
+        self.host: str = addrinfo[0]
+        self.port: int = addrinfo[1]
+
+
 class ConnectionManager:
 
     def __init__(self, local_port=0) -> None:
@@ -159,13 +166,14 @@ class ConnectionManager:
             logging.info(f"received packet: {packet}")
 
             # ignore any packet with unknown conn_id as per RFC section 5.1.2
-            # if connection_id != 0 and connection_id not in self.connections:
-            #     logging.error(
-            #         f"Received packet for unknown connection id {connection_id}")
-            #     continue
+            if connection_id == 0:
+                # this event occurs during a handshake on the server side
+                yield ZeroConnectionIDEvent(packet, addrinfo)
 
             if connection_id not in self.connections:
+                # this event occurs during a handshake on the client side
                 yield UnknownConnectionIDEvent(packet, addrinfo)
+
             # check if the connection is created thruough the event above
             # it may not be as the client may ignore the event
             logging.info(

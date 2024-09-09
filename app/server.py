@@ -3,6 +3,7 @@ from common import (
     Connection,
     ConnectionManager,
     UnknownConnectionIDEvent,
+    ZeroConnectionIDEvent,
 )
 from packet import Packet
 from frame import *
@@ -87,10 +88,10 @@ def run_server(port: int):
         logging.info(event)
         # Send to different ServerConnections depending on header
         if isinstance(event, UnknownConnectionIDEvent):
-            logging.info("got an unknown connection id event")
-            # if the connection id is not 0, then it is not a new connection request, ignore it
-            if event.packet.header.connection_id != 0:
-                continue
+            logging.info("got an unknown connection id event, ignoring...")
+
+        elif isinstance(event, ZeroConnectionIDEvent):
+            logging.info("got a zero connection id event")
             # if the connection id is 0, then it is a new connection request, and it should either have no frames, or a single ReadFrame
             if len(event.packet.frames) > 1 and not isinstance(event.packet.frames[0], ReadFrame):
                 continue
@@ -102,7 +103,3 @@ def run_server(port: int):
             conn.update(event.packet, (event.host, event.port))
             # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
-            # conn.update(event.packet, (event.host, event.port))
-            # if len(event.packet.frames) != 0:
-            # for frame in event.packet.frames:
-            #    conn.handle_frame(frame)
