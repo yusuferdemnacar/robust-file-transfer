@@ -1,4 +1,5 @@
 import struct
+import json
 from frame.command import *
 from frame.data import *
 from frame.control import *
@@ -33,9 +34,7 @@ class Packet:
             self.checksum = checksum
 
         def __repr__(self) -> str:
-            fields = ', '.join(f'{key}={value}' for key,
-                               value in self.__dict__.items())
-            return f'{self.__class__.__name__}({fields})'
+            return json.dumps(self.to_dict(), indent=4)
 
         def __str__(self) -> str:
             return self.__repr__()
@@ -50,7 +49,15 @@ class Packet:
         def unpack(cls, packet_bytes: bytes):
             version, connection_id, packet_id, checksum = struct.unpack(
                 '<BII3s', packet_bytes[:cls.size])
-            return cls(version, connection_id, packet_id, checksum)
+            return cls(version, connection_id, packet_id, int.from_bytes(checksum, "little"))
+
+        def to_dict(self):
+            return {
+                "version": self.version,
+                "connection_id": self.connection_id,
+                "packet_id": self.packet_id,
+                "checksum": self.checksum
+            }
 
     def __init__(self, version: int, connection_id: int, packet_id: int, frames: list) -> None:
         self.header = Packet.Header(version, connection_id, packet_id, 0)
@@ -58,9 +65,7 @@ class Packet:
         self.header.checksum = self.calculateChecksum()
 
     def __repr__(self) -> str:
-        fields = ', '.join(f'{key}={value}' for key,
-                           value in self.__dict__.items())
-        return f'{self.__class__.__name__}({fields})'
+        return json.dumps(self.to_dict(), indent=4)
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -105,3 +110,9 @@ class Packet:
         data = b"".join([data[:Packet.Header.size-3],
                         bytes(b"\x00\x00\x00"), data[Packet.Header.size:]])
         return crc32(data)
+
+    def to_dict(self):
+        return {
+            "header": self.header.to_dict(),
+            "frames": [frame.to_dict() for frame in self.frames]
+        }
