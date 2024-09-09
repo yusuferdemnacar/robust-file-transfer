@@ -55,6 +55,15 @@ class ClientConnection(Connection):
                         case _:
                             logging.error(
                                 "Unknown response type \"" + type + "\"")
+        elif isinstance(frame, ErrorFrame):
+            for type, name, streamID in self.readJobs:
+                if streamID == frame.header.stream_id:
+                    self.readJobs.remove((type, name, streamID))
+                    logging.critical(f"Read job with streamID {streamID} has failed with message: {frame.payload.data}")
+            for type, name, streamID in self.commandJobs:
+                if streamID == frame.header.stream_id:
+                    self.commandJobs.remove((type, name, streamID))
+                    logging.critical(f"Command of type {type} has failed with message: {frame.payload.dataa}")
         elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass
