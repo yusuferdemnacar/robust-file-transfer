@@ -109,7 +109,12 @@ class Packet:
         data = self.pack()
         data = b"".join([data[:Packet.Header.size-3],
                         bytes(b"\x00\x00\x00"), data[Packet.Header.size:]])
-        return crc32(data)
+
+    return int.from_bytes(crc32(data).to_bytes(4, "little")[:3], "little")
+
+    @property
+    def correctChecksum(self):
+        return self.header.checksum == self.calculateChecksum()
 
     def to_dict(self):
         return {
