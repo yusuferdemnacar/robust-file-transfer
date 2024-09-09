@@ -110,7 +110,7 @@ class Packet:
         data = b"".join([data[:Packet.Header.size-3],
                         bytes(b"\x00\x00\x00"), data[Packet.Header.size:]])
 
-    return int.from_bytes(crc32(data).to_bytes(4, "little")[:3], "little")
+        return int.from_bytes(crc32(data).to_bytes(4, "little")[:3], "little")
 
     @property
     def correctChecksum(self):
