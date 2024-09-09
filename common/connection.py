@@ -59,8 +59,12 @@ class Connection:
         # (2) TODO: setting checksum (and ACK number) in packet objects
         # (3) TODO: packet_id is probably also increased in empty packets
 
-        # this is the amount of bytes that we are allowed to send out according to the current send window:
-        max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
+        # max_flush_bytes is the amount of bytes that we are allowed to send out according to the current send window:
+        if not self.connection_id and len(self.inflight_packets) == 1:
+            # in this case we cannot have more than one inflight packet
+            max_flush_bytes = 0
+        else:
+            max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
 
         to_be_flushed_packets: list[Packet] = []
         to_be_flushed_bytes: int = 0
@@ -123,6 +127,8 @@ class Connection:
                 data, (self.remote_host, self.remote_port))
 
     def current_retransmit_timeout(self, current_time):
+        if len(self.inflight_packets) == 0:
+            return None
         return max(self.inflight_packets[0][0] + self.retransmit_timeout - current_time, 0)
 
     def update(self, packet: Packet, addrinfo) -> float:
@@ -135,12 +141,14 @@ class Connection:
             return
 
         if self.remote_host != addrinfo[0]:
-            logging.info(f"Host of connection {self.connection_id} changed from {self.remote_host} to {addrinfo[0]}")
+            logging.info(
+                f"Host of connection {self.connection_id} changed from {self.remote_host} to {addrinfo[0]}")
             self.remote_host = addrinfo[0]
         if self.remote_port != addrinfo[1]:
-            logging.info(f"Port of connection {self.connection_id} changed from {self.remote_port} to {addrinfo[1]}")
+            logging.info(
+                f"Port of connection {self.connection_id} changed from {self.remote_port} to {addrinfo[1]}")
             self.remote_port = addrinfo[1]
-            
+
         # TODO: get current timestamp and determine if retransmission is outstanding.
         # TODO: if retransmission is necessary, mark the packet for retransmission.
 

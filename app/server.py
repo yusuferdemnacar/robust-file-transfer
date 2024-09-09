@@ -3,7 +3,6 @@ from common import (
     Connection,
     ConnectionManager,
     UnknownConnectionIDEvent,
-    UpdateEvent,
 )
 from packet import Packet
 from frame import *
@@ -100,13 +99,10 @@ def run_server(port: int):
             conn = ServerConnection(
                 connection_manager, event.host, event.port, connection_manager.next_connection_id())
             connection_manager.add_connection(conn)
+            conn.update(event.packet, (event.host, event.port))
             # TODO think through if calling self.update() instead is better, eg. to initialize next_recv_packet_id
             # connection is now established, if there is a ReadFrame, open a stream as well
-            conn.update(event.packet, (event.host, event.port))
+            # conn.update(event.packet, (event.host, event.port))
             # if len(event.packet.frames) != 0:
             # for frame in event.packet.frames:
             #    conn.handle_frame(frame)
-
-        if isinstance(event, UpdateEvent):
-            logging.info("got an update event")
-            event.connection.update(event.packet, (event.host, event.port))

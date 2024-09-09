@@ -2,7 +2,6 @@ from common import (
     ConnectionManager,
     Connection,
     UnknownConnectionIDEvent,
-    UpdateEvent,
 )
 from packet import Packet
 from frame import *
@@ -101,7 +100,6 @@ class ClientConnection(Connection):
         del self.connection_manager.connections[0]
         self.connection_manager.connections[new_id] = self
         self.update(packet, (host, port))
-        self.connection_manager.last_updated.append(self)
 
 
 def run_client(host, port, files):
@@ -119,6 +117,3 @@ def run_client(host, port, files):
             if connection.connection_id == 0:
                 connection.update_connection_id(
                     event.packet, event.host, event.port)
-
-        if isinstance(event, UpdateEvent):
-            event.connection.update(event.packet, (event.host, event.port))

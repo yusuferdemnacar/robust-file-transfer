@@ -94,14 +94,6 @@ class UnknownConnectionIDEvent:
         self.port: int = addrinfo[1]
 
 
-class UpdateEvent:
-    def __init__(self, conn, packet, addrinfo):
-        self.connection: common.Connection = conn
-        self.packet: Packet = packet
-        self.host: str = addrinfo[0]
-        self.port: int = addrinfo[1]
-
-
 class ConnectionManager:
 
     def __init__(self, local_port=0) -> None:
@@ -118,13 +110,11 @@ class ConnectionManager:
             f"local address is {self.local_address} at port {self.local_port}")
 
         self.connections: dict[int, common.Connection] = {}
-        self.last_updated: list[common.Connection] = []
 
     def add_connection(self, connection: common.Connection):
         if connection.connection_id in self.connections:
             raise Exception(
                 "Cannot have two connections with the same ID at once")
-        self.last_updated.append(connection)
         self.connections[connection.connection_id] = connection
 
     def remove_connection(self, connection: common.Connection):
@@ -137,13 +127,12 @@ class ConnectionManager:
 
         while True:  # TODO: termination condition
 
-            for con in self.last_updated:
+            for con in self.connections.values():
                 con.flush()
-                self.last_updated.remove(con)
 
             # timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
             current_time = time.time()
-            timeout, timedout_connection = min([(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()],
+            timeout, timedout_connection = min(filter(lambda tc: tc[0] is not None, [(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()]),
                                                key=lambda tt: tt[0],
                                                default=(None, None))
             logging.info(f"select: {timeout} {timedout_connection}")
@@ -152,7 +141,6 @@ class ConnectionManager:
             if len(rlist) == 0:
                 # timeout occured!
                 timedout_connection.update(None, None)
-                self.last_updated.append(timedout_connection)
                 continue
 
             # 64kib is the maximum ip payload size
@@ -170,10 +158,20 @@ class ConnectionManager:
 
             logging.info(f"received packet: {packet}")
 
+            # ignore any packet with unknown conn_id as per RFC section 5.1.2
+            # if connection_id != 0 and connection_id not in self.connections:
+            #     logging.error(
+            #         f"Received packet for unknown connection id {connection_id}")
+            #     continue
+
             if connection_id not in self.connections:
                 yield UnknownConnectionIDEvent(packet, addrinfo)
-            else:
-                yield UpdateEvent(self.connections[connection_id], packet, addrinfo)
-                # if the update did not remove the connection, add it to the last_updated list
-                if connection_id in self.connections:
-                    self.last_updated.append(self.connections[connection_id])
+            # check if the connection is created thruough the event above
+            # it may not be as the client may ignore the event
+            logging.info(
+                "connections:")
+            logging.info(self.connections)
+            if connection_id in self.connections:
+                logging.info(
+                    f"updating connection with id {connection_id}")
+                self.connections[connection_id].update(packet, addrinfo)
