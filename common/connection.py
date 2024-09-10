@@ -165,10 +165,12 @@ class Connection:
             self.remote_port = addrinfo[1]
 
         # TODO: handle global packet header:
-        # - version
-        # - connectionID
         # - packet checksum
-        # - ack number
+
+        if packet.header.version != 1 or packet.header.connection_id != self.connection_id:
+            # drop the packet
+            return
+
         if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
 
