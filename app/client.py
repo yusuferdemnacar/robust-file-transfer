@@ -2,6 +2,7 @@ from common import (
     ConnectionManager,
     Connection,
     UnknownConnectionIDEvent,
+    ConnectionTerminatedEvent,
 )
 from packet import Packet
 from frame import *
@@ -122,3 +123,6 @@ def run_client(host, port, files):
             if connection.connection_id == 0:
                 connection.update_connection_id(
                     event.packet, event.host, event.port)
+        elif isinstance(event, ConnectionTerminatedEvent):
+            # exit in this case
+            break
