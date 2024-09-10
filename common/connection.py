@@ -164,11 +164,15 @@ class Connection:
                 f"Port of connection {self.connection_id} changed from {self.remote_port} to {addrinfo[1]}")
             self.remote_port = addrinfo[1]
 
-        # TODO: handle global packet header:
-        # - packet checksum
-
-        if packet.header.version != 1 or packet.header.connection_id != self.connection_id:
-            # drop the packet
+        # Reasons to drop
+        if packet.header.version != 1:
+            logging.info("Packet dropped due to invalid header")
+            return
+        elif packet.header.connection_id != self.connection_id:
+            logging.info("Packet dropped due to invalid Connection ID")
+            return
+        elif not packet.correctChecksum():
+            logging.info("Packet dropped due to invalid checksum")
             return
 
         if packet.header.packet_id == self.next_recv_packet_id:
