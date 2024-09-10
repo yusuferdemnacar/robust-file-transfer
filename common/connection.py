@@ -61,6 +61,19 @@ class Connection:
         # (2) TODO: setting checksum (and ACK number) in packet objects
         # (3) TODO: packet_id is probably also increased in empty packets
 
+        if self.retransmit_timeout_triggered:
+            current_time = time.time()
+            retransmitted = []
+            for tp in self.inflight_packets:
+                timestamp, packet = tp
+                if current_time > timestamp + self.retransmit_timeout:
+                    retransmitted.append(tp)
+                    self.connection_manager.socket.sendto(packet.pack(), (self.remote_host, self.remote_port))
+            for tp in retransmitted:
+                timestamp, packet = tp
+                self.inflight_packets.remove(tp)
+                self.inflight_packets.appendleft((current_time, packet))
+
         # max_flush_bytes is the amount of bytes that we are allowed to send out according to the current send window:
         if not self.connection_id and len(self.inflight_packets) == 1:
             # in this case we cannot have more than one inflight packet
@@ -122,7 +135,7 @@ class Connection:
         for packet in to_be_flushed_packets:
             data = packet.pack()
             self.inflight_bytes += len(data)
-            self.inflight_packets.append((time.time(), packet))
+            self.inflight_packets.appendleft((time.time(), packet))
             logging.info(f"sending packet: {self.inflight_packets[-1]}")
             self.connection_manager.socket.sendto(
                 data, (self.remote_host, self.remote_port)
