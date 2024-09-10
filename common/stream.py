@@ -11,14 +11,13 @@ class Stream:
         self.path = path
         self.file = open(path, "r+b")
         # TODO: file checksum calculation
-        self.checksum = 0
         self.frames_so_far = []  # for debugging
+        self.is_closed = False
 
     def __repr__(self):
         return json.dumps({
             "stream_id": self.stream_id,
             "path": self.path,
-            "checksum": self.checksum
         }, indent=4)
 
     def __str__(self) -> str:
@@ -33,17 +32,30 @@ class Stream:
         return cls(stream_id, path)
 
     def close(self):
+        if self.is_closed:
+            return
         self.file.close()
+        self.is_closed = True
         # if the file is empty, delete it
         print(f"File size: {self.get_file_size()}")
         if self.get_file_size() == 0:
             pathlib.Path(self.path).unlink()
 
+    def flush(self):
+        self.file.flush()
+
     def get_file_size(self) -> int:
         return pathlib.Path(self.path).stat().st_size
 
     def get_file_checksum(self) -> int:
-        return zlib.crc32(self.file.read())
+        checksum = 0
+        with open(self.path, "rb") as file:
+            while chunk := file.read(4096):
+                checksum = zlib.crc32(chunk, checksum)
+        return checksum
 
     def get_file_name(self) -> str:
         return pathlib.Path(self.path).name
+
+    def remove_file(self):
+        pathlib.Path(self.path).unlink()

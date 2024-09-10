@@ -71,6 +71,17 @@ class ServerConnection(Connection):
             self.queue_frame(DataFrame(stream.stream_id, i, b""))
             return
 
+        elif isinstance(frame, ChecksumFrame):
+            # if the stream id does not exist, send an error frame
+            if frame.header.stream_id not in self.streams:
+                self.queue_frame(ErrorFrame(
+                    frame.header.stream_id, "stream id does not exist"))
+                return
+            # send the checksum of the file
+            self.queue_frame(AnswerFrame(
+                frame.header.stream_id, self.streams[frame.header.stream_id].get_file_checksum().to_bytes(4, "little")))
+            return
+
         else:
             logging.error(
                 "Recieved unknown frame with type \"" + str(frame.type) + "\"")

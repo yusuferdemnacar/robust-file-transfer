@@ -29,12 +29,14 @@ class ClientConnection(Connection):
             # logging.info("Recieved data frame with stream id " +
             #              str(frame.header.stream_id))
             if frame.header.payload_length == 0:
-                # TODO check checksum
+                self.streams[frame.header.stream_id].flush()
                 logging.info(
                     "Transfer of " + self.streams[frame.header.stream_id].path + " completed.")
-                # close and remove stream
-                self.streams[frame.header.stream_id].close()
-                del self.streams[frame.header.stream_id]
+                # ask for checksum
+                self.frame_queue.append(ChecksumFrame(
+                    frame.header.stream_id, self.streams[frame.header.stream_id].path))
+                # self.streams[frame.header.stream_id].close()
+                # del self.streams[frame.header.stream_id]
             else:
                 self.streams[frame.header.stream_id].file.write(
                     frame.payload.data)
@@ -44,6 +46,24 @@ class ClientConnection(Connection):
             # Assume the answer is for the checksum command for now as it is the only one implemented by the partnering group
             logging.info(
                 "File: \"" + self.streams[frame.header.stream_id].path + "\" has been checksummed with value: " + str(frame.payload.data))
+            local_checksum = self.streams[frame.header.stream_id].get_file_checksum()
+            remote_checksum = int.from_bytes(frame.payload.data, "little")
+            # Immediately close the stream after checksum is received
+            self.streams[frame.header.stream_id].close()
+            logging.info(
+                "Closed stream with stream id " + str(frame.header.stream_id))
+            # Check if the checksum matches the file, if not delete the file
+
+            print("Local checksum: " + str(local_checksum))
+            print("Remote checksum: " + str(remote_checksum))
+            if local_checksum == remote_checksum:
+                logging.info("Checksums match")
+            else:
+                logging.error("Checksums do not match, deleting file")
+                self.streams[frame.header.stream_id].remove_file()
+
+            del self.streams[frame.header.stream_id]
+
         elif isinstance(frame, ErrorFrame):
             logging.error(
                 "Recieved error frame on stream id " + str(frame.header.stream_id) + " with message: " + frame.payload.data)
@@ -67,8 +87,9 @@ class ClientConnection(Connection):
         self.queue_frame(ReadFrame(stream_id, flags,
                          offset, length, checksum, path))
 
-    def command_checksum(self, streamID: int):
-        self.queue_frame(ChecksumFrame(streamID))
+    def command_checksum(self, stream_id: int):
+        self.queue_frame(ChecksumFrame(
+            stream_id, self.streams[stream_id].path))
 
     def command_write(self, path: str, offset=0, length=0):
         pass
