@@ -122,7 +122,7 @@ class ConnectionManager:
 
         self.p = p
         self.q = q
-        self.lastSendSuccessfull = True
+        self.lastSendSuccessful = True
 
     def add_connection(self, connection: common.Connection):
         if connection.connection_id in self.connections:
