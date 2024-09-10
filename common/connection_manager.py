@@ -100,6 +100,9 @@ class ZeroConnectionIDEvent:
         self.host: str = addrinfo[0]
         self.port: int = addrinfo[1]
 
+class ConnectionTerminatedEvent:
+    def __init__(self, connection):
+        self.connection = connection
 
 class ConnectionManager:
 
@@ -108,8 +111,6 @@ class ConnectionManager:
 
         # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
         self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        # TODO: set socket timeout option value to reasonable value
-        self.socket.settimeout(10)
         self.socket.bind(("", local_port))
 
         self.local_address, self.local_port, _, _ = self.socket.getsockname()
@@ -135,13 +136,22 @@ class ConnectionManager:
         while True:  # TODO: termination condition
 
             for con in self.connections.values():
-                con.flush()
+                if not con.is_closed():
+                    con.flush()
+                else:
+                    yield ConnectionTerminatedEvent(con)
+                    del self.connections[con.connection_id]
 
-            # timeout, timedout_connection = min([c.retransmit_timeout, c for c in connections])
+            # timeout so that retransmissions can be handled
             current_time = time.time()
-            timeout, timedout_connection = min(filter(lambda tc: tc[0] is not None, [(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()]),
-                                               key=lambda tt: tt[0],
-                                               default=(None, None))
+            timeout, timedout_connection = min(
+                filter(
+                    lambda tc: tc[0] is not None, # connections without inflight packets don't have a timeout
+                    [(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()]
+                ),
+                key=lambda tt: tt[0],
+                default=(None, None)
+            )
             logging.info(f"select: {timeout} {timedout_connection}")
             rlist, _, _ = select.select([self.socket], [], [], timeout)
 
@@ -178,10 +188,6 @@ class ConnectionManager:
 
             # check if the connection is created thruough the event above
             # it may not be as the client may ignore the event
-            logging.info(
-                "connections:")
-            logging.info(self.connections)
             if connection_id in self.connections:
-                logging.info(
-                    f"updating connection with id {connection_id}")
+                logging.info(f"updating connection with id {connection_id}")
                 self.connections[connection_id].update(packet, addrinfo)
