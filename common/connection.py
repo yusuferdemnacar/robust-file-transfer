@@ -41,7 +41,9 @@ class Connection:
 
         # start out with 32 max-sized packets, usually the receive buffer for sockets under linux can hold that amount
         self.max_packet_size = 1500 - 40 - 8  # TODO do MTU discovery?
-        self.max_inflight_bytes = self.max_packet_size * 32
+        self.max_inflight_bytes = self.max_packet_size
+        self.is_slowstart = True
+        self.slowstart_threshold = None
 
         # send windowing
         self.last_sent_packet_id = 0
@@ -68,7 +70,7 @@ class Connection:
                 timestamp, packet = tp
                 if current_time > timestamp + self.retransmit_timeout:
                     retransmitted.append(tp)
-                    self.connection_manager.socket.sendto(packet.pack(), (self.remote_host, self.remote_port))
+                    self.connection_manager.sendto(packet.pack(), (self.remote_host, self.remote_port))
             for tp in retransmitted:
                 timestamp, packet = tp
                 self.inflight_packets.remove(tp)
@@ -190,6 +192,12 @@ class Connection:
 
         if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
+
+            # TODO: increase the congestion window here
+            if self.is_slowstart:
+                pass # TODO double
+            else:
+                pass # TODO add
 
             # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
             if next((frame for frame in packet.frames if

@@ -116,8 +116,8 @@ class ClientConnection(Connection):
         self.update(packet, (host, port))
 
 
-def run_client(host, port, files):
-    connection_manager = ConnectionManager()
+def run_client(host, port, files, p = 1, q = 0):
+    connection_manager = ConnectionManager(0, p, q)
     connection = ClientConnection(connection_manager, host, port, files)
     logging.info(
         f"client socket bound to {connection_manager.local_address} on port {connection_manager.local_port}")

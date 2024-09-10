@@ -6,6 +6,7 @@ import logging
 import select
 import time
 import queue
+import random
 
 from packet import Packet
 
@@ -106,7 +107,7 @@ class ConnectionTerminatedEvent:
 
 class ConnectionManager:
 
-    def __init__(self, local_port=0) -> None:
+    def __init__(self, local_port=0, p = 1, q = 0) -> None:
         self.socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
         # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
@@ -118,6 +119,10 @@ class ConnectionManager:
             f"local address is {self.local_address} at port {self.local_port}")
 
         self.connections: dict[int, common.Connection] = {}
+
+        self.p = p
+        self.q = q
+        self.lastSendSuccessfull = True
 
     def add_connection(self, connection: common.Connection):
         if connection.connection_id in self.connections:
@@ -191,3 +196,17 @@ class ConnectionManager:
             if connection_id in self.connections:
                 logging.info(f"updating connection with id {connection_id}")
                 self.connections[connection_id].update(packet, addrinfo)
+
+    def sendto(self, data, address):
+        if self.lastSendSuccessful:
+            if random.uniform(0, 1) > self.p:
+                self.socket.sendto(data, address)
+            else:
+                self.lastSendSuccessful = False
+        else:
+            if random.uniform(0, 1) > self.q:
+                self.lastSendSuccessful = True
+                self.socket.sendto(data, address)
+            else:
+                pass
+        

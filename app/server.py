@@ -93,8 +93,8 @@ class ServerConnection(Connection):
 # ConnectionHander -> Connection
 # Connection -> ServerConecion ClientConnection
 
-def run_server(port: int):
-    connection_manager = ConnectionManager(local_port=port)
+def run_server(port: int, p = 1, q = 0):
+    connection_manager = ConnectionManager(port, p, q)
     logging.info(
         f"server listening at {connection_manager.local_address} on port {connection_manager.local_port}")
 
