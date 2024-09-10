@@ -133,7 +133,7 @@ class ConnectionManager:
 
     def loop(self):
 
-        while True:  # TODO: termination condition
+        while True:
 
             for con in self.connections.values():
                 if not con.is_closed():
@@ -147,7 +147,7 @@ class ConnectionManager:
             timeout, timedout_connection = min(
                 filter(
                     lambda tc: tc[0] is not None, # connections without inflight packets don't have a timeout
-                    [(c.current_retransmit_timeout(current_time), c) for c in self.connections.values()]
+                    [(c.current_timeout(current_time), c) for c in self.connections.values()]
                 ),
                 key=lambda tt: tt[0],
                 default=(None, None)
@@ -157,7 +157,7 @@ class ConnectionManager:
 
             if len(rlist) == 0:
                 # timeout occured!
-                timedout_connection.update(None, None)
+                timedout_connection.timed_out(time.time())
                 continue
 
             # 64kib is the maximum ip payload size

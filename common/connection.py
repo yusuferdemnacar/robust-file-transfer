@@ -26,9 +26,11 @@ class Connection:
         self.connection_id = connection_id
         self.streams: dict[int, common.Stream] = {}
         self.retransmit_timeout = 5  # seconds
+        self.connection_timeout = 5 * 60  # seconds
+        self.last_updated = time.time()
 
-        # underlying socket instance can be shared across multiple connections (in case of server)
-        self.last_flushed = None
+        # small optimization s.t. flush() does not check every single inflight packet every single time
+        self.retransmit_timeout_triggered = False
 
         # congestion and flow control is on a per-connection basis
         # acknowledgements are on a per-packet basis
@@ -44,7 +46,7 @@ class Connection:
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
-        self.inflight_packets = deque()  # packet cache for retransmissions
+        self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
 
     def flush(self):
@@ -112,8 +114,7 @@ class Connection:
 
             # let's start packaging frames!
             packet_id = self.last_sent_packet_id + 1
-            packet = Packet(1, self.connection_id, packet_id,
-                            to_be_packaged_frames)  # TODO set ACK
+            packet = Packet(1, self.connection_id, packet_id, to_be_packaged_frames)
             self.last_sent_packet_id = packet_id
             to_be_flushed_packets.append(packet)
             to_be_flushed_bytes += len(packet)
@@ -124,21 +125,35 @@ class Connection:
             self.inflight_packets.append((time.time(), packet))
             logging.info(f"sending packet: {self.inflight_packets[-1]}")
             self.connection_manager.socket.sendto(
-                data, (self.remote_host, self.remote_port))
+                data, (self.remote_host, self.remote_port)
+            )
 
-    def current_retransmit_timeout(self, current_time):
-        if len(self.inflight_packets) == 0:
-            return None
-        return max(self.inflight_packets[0][0] + self.retransmit_timeout - current_time, 0)
+    def current_timeout(self, current_time) -> float:
+        """
+        returns a float indicating the seconds until the next timeout occurs
+        (could be either retransmit or connection timeout)
+        """
 
-    def update(self, packet: Packet, addrinfo) -> float:
+        # self.inflight_packets[0][0] = _send_ timestamp of "oldest" inflight packet (is updated upon retransmission)
+        retransmit_timeout = max(0, self.inflight_packets[0][0] + self.retransmit_timeout - current_time)
+
+        # self.last_updated = recv timestamp of last seen packet from peer
+        connection_timeout = max(0, self.last_updated + self.connection_timeout - current_time)
+
+        return min(retransmit_timeout, connection_timeout)
+
+    def timed_out(self, current_time):
+        if current_time > self.last_updated + self.connection_timeout:
+            # TODO save state that connection is closed due to timeout
+            pass
+        if len(self.inflight_packets) > 0:
+            if current_time > self.inflight_packets[0][0] + self.retransmit_timeout:
+                self.retransmit_timeout_triggered = True  # in that case, flush() needs to do retransmissions
+
+    def update(self, packet: Packet, addrinfo):
         # this function applies updates to the connection/streams from a packets.
 
-        if (packet, addrinfo) == (None, None):
-            # this is a timeout
-            self.queue_frame(ExitFrame())
-            self.connection_manager.remove_connection(self)
-            return
+        self.last_updated = time.time()
 
         if self.remote_host != addrinfo[0]:
             logging.info(
@@ -149,15 +164,11 @@ class Connection:
                 f"Port of connection {self.connection_id} changed from {self.remote_port} to {addrinfo[1]}")
             self.remote_port = addrinfo[1]
 
-        # TODO: get current timestamp and determine if retransmission is outstanding.
-        # TODO: if retransmission is necessary, mark the packet for retransmission.
-
         # TODO: handle global packet header:
         # - version
         # - connectionID
         # - packet checksum
         # - ack number
-        # TODO:  packet for this packet. IF the packet was not empty.
         if packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
 
@@ -166,26 +177,23 @@ class Connection:
                      (type(frame) != AckFrame and
                       type(frame) != ExitFrame)
                      ), None):
-                self.queue_frame(AckFrame(packet.header.packet_id))
+                self.queue_frame(AckFrame(packet.header.packet_id + 1), transmit_first=True)
 
-        # TODO: look for ack number in packet and move send window accordingly.
+        else:
+            # drop the packet since we don't allow reordered packets for now.
+            return
+
         # TODO: detect increase/decrease of send window size.
 
         for frame in packet.frames:
-            # TODO: handle some of the control frames here:
-            # - ack frame
-            # - exit frame
-            # - flow control frame (?)
-            # - conn id change frame (?)
+            if isinstance(frame, AckFrame):
+                acked_packet_id = frame.header.packet_id
+                acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id < acked_packet_id]
+                for tp in acked_packets:
+                    self.inflight_packets.remove(tp)
+                    self.inflight_bytes -= len(tp[1].pack())
 
-            # TODO: do connection server/client specific stuff:
-            #  Idea is, that connection/stream object can, in turn, use queue_frames()
-            #  (or maybe another function of ConnectionHandler that does not exist yet)
-            #  to react to whatever was received here. What the reaction to a packet is,
-            #  might depend on if it is a server/client.
             self.handle_frame(frame)
-
-        pass
 
     def queue_frame(self, frame: Frame, transmit_first=None):
         # server/client or connection/stream (don't know yet) can use this function
