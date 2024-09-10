@@ -36,11 +36,13 @@ class ServerConnection(Connection):
             # if ReadFrame with an existing stream id is received, queue an ErrorFrame
             if frame.header.stream_id in self.streams:
                 # check error codes
-                self.queue_frame(ErrorFrame(0, "stream id already exists"))
+                self.queue_frame(ErrorFrame(
+                    frame.header.stream_id, "stream id already exists"))
                 return
             # if the path does not exist, send an error frame
             if not pathlib.Path(frame.payload.data).exists():
-                self.queue_frame(ErrorFrame(0, "file not found"))
+                self.queue_frame(ErrorFrame(
+                    frame.header.stream_id, "file not found"))
                 return
             # check if the offset+length is greater than the file size
             if (frame.header.offset + frame.header.length) > pathlib.Path(frame.payload.data).stat().st_size:
@@ -56,7 +58,7 @@ class ServerConnection(Connection):
             # if the frame has no offset and length, send the entire file
             # TODO: check if this is the correct way to handle this
             if frame.header.length == 0:
-                for i in range(0, stream.file_size, 128):
+                for i in range(0, stream.get_file_size(), 128):
                     stream.file.seek(i)
                     data = stream.file.read(128)
                     self.queue_frame(DataFrame(stream.stream_id, i, data))

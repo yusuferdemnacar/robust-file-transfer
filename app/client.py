@@ -2,6 +2,7 @@ from common import (
     ConnectionManager,
     Connection,
     UnknownConnectionIDEvent,
+    Stream,
 )
 from packet import Packet
 from frame import *
@@ -10,11 +11,9 @@ import logging
 
 
 class ClientConnection(Connection):
-    streamID = 0  # Returns 1 first time due to returning ++0
+    stream_id_index = 0  # Returns 1 first time due to returning ++0
 
     def __init__(self, connection_manager, host, port, files: list[str]):
-        self.readJobs = {} # streamID => (name, checkChecksum, checksum, fileHandle)
-        self.commandJobs = {}  # streamID => (type, name)
         self.connection_id = None  # will be initialized upon reply from server
         super().__init__(connection_manager, host, port, 0)
 
@@ -27,39 +26,30 @@ class ClientConnection(Connection):
             self.connection_manager.remove_connection(self)
             return
         elif isinstance(frame, DataFrame):
-            streamID = frame.header.stream_id
             # logging.info("Recieved data frame with stream id " +
             #              str(frame.header.stream_id))
-            if streamID in self.readJobs:
-                name, checkChecksum, checksum, fileHandle = self.readJobs[streamID]
-                if frame.header.payload_length == 0:
-                    self.readJobs.pop(streamID)
-                    # TODO check checksum
-                    logging.info("Transfer of " + name + " completed.")
-                else:
-                    fileHandle.write(frame.payload.data)
+            if frame.header.payload_length == 0:
+                # TODO check checksum
+                logging.info(
+                    "Transfer of " + self.streams[frame.header.stream_id].path + " completed.")
+                # close and remove stream
+                self.streams[frame.header.stream_id].close()
+                del self.streams[frame.header.stream_id]
+            else:
+                self.streams[frame.header.stream_id].file.write(
+                    frame.payload.data)
         elif isinstance(frame, AnswerFrame):
-            streamID = frame.header.stream_id
-            if streamID in self.commandJobs:
-                type, name = self.commandJobs[streamID]
-                self.commandJobs.pop(streamID)
-                match type:
-                    case ChecksumFrame.type:
-                        logging.info(
-                            "File: \"" + name + "\" has the checksum " + frame.payload + ".")
-                    case _:
-                        logging.error(
-                            "Unknown response type \"" + type + "\"")
+            # TODO: Only the checksum answer frame is implemented
+            # There is currently no way of knowing which command the answer is for in the spec, so changes are needed to the protocol
+            # Assume the answer is for the checksum command for now as it is the only one implemented by the partnering group
+            logging.info(
+                "File: \"" + self.streams[frame.header.stream_id].path + "\" has been checksummed with value: " + str(frame.payload.data))
         elif isinstance(frame, ErrorFrame):
-            streamID = frame.header.stream_id
-            if streamID in self.commandJobs:
-                type, name = self.commandJobs[streamID]
-                self.readJobs.pop(streamID)
-                logging.critical(f"Command of type {type} on \"{name}\" has failed with message: {frame.payload.dataa}")
-            if streamID in self.readJobs:
-                name, checkChecksum, checksum, fileHandle = self.readJobs[streamID]
-                self.commandJobs.pop(streamID)
-                logging.critical(f"Read job of \"{name}\" with streamID {streamID} has failed with message: {frame.payload.data}")
+            logging.error(
+                "Recieved error frame on stream id " + str(frame.header.stream_id) + " with message: " + frame.payload.data)
+            # close and remove stream
+            self.streams[frame.header.stream_id].close()
+            del self.streams[frame.header.stream_id]
         elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass
@@ -69,32 +59,29 @@ class ClientConnection(Connection):
             self.queue_frame(ErrorFrame(
                 frame.header.stream_id, "not implemented yet"))
 
-    def command_read(self, name: str, offset=0, length=0, checkChecksum=False, checksum=0):
+    def command_read(self, path: str, offset=0, length=0, checkChecksum=False, checksum=0):
         # TODO continue read from partially completed file (maybe use "a" mode instead?)
-        fileIO = open(name, "wb")
-        jobStreamID = self.next_streamID()
+        stream_id = self.next_stream_id()
+        self.streams[stream_id] = Stream.open(stream_id, path)
         flags = 1 if checkChecksum else 0
-        self.readJobs[jobStreamID] = (name, checkChecksum, checksum, fileIO)
-        self.queue_frame(ReadFrame(jobStreamID, flags,
-                         offset, length, checksum, name))
+        self.queue_frame(ReadFrame(stream_id, flags,
+                         offset, length, checksum, path))
 
-    def command_checksum(self, name: str):
-        jobStreamID = self.next_streamID()
-        self.commandJobs[jobStreamID] = (ChecksumFrame.type, name, jobStreamID)
-        self.queue_frame(ChecksumFrame(jobStreamID, name))
+    def command_checksum(self, streamID: int):
+        self.queue_frame(ChecksumFrame(streamID))
 
-    def command_write(self, name: str, offset=0, length=0):
+    def command_write(self, path: str, offset=0, length=0):
         pass
 
-    def command_stat(self, name: str):
+    def command_stat(self, path: str):
         pass
 
     def command_list(self, path: str):
         pass
 
-    def next_streamID(self):
-        self.streamID = self.streamID + 1
-        return self.streamID
+    def next_stream_id(self):
+        self.stream_id_index += 1
+        return self.stream_id_index
 
     def update_connection_id(self, packet: Packet, host, port):
         new_id = packet.header.connection_id

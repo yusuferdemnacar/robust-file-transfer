@@ -169,10 +169,12 @@ class ConnectionManager:
             if connection_id == 0:
                 # this event occurs during a handshake on the server side
                 yield ZeroConnectionIDEvent(packet, addrinfo)
+                continue
 
             if connection_id not in self.connections:
                 # this event occurs during a handshake on the client side
                 yield UnknownConnectionIDEvent(packet, addrinfo)
+                continue
 
             # check if the connection is created thruough the event above
             # it may not be as the client may ignore the event
