@@ -149,13 +149,15 @@ class Connection:
         (could be either retransmit or connection timeout)
         """
 
-        # self.inflight_packets[0][0] = _send_ timestamp of "oldest" inflight packet (is updated upon retransmission)
-        retransmit_timeout = max(0, self.inflight_packets[0][0] + self.retransmit_timeout - current_time)
-
         # self.last_updated = recv timestamp of last seen packet from peer
         connection_timeout = max(0, self.last_updated + self.connection_timeout - current_time)
 
-        return min(retransmit_timeout, connection_timeout)
+        if len(self.inflight_packets) != 0:
+            # self.inflight_packets[0][0] = _send_ timestamp of "oldest" inflight packet (is updated upon retransmission)
+            retransmit_timeout = max(0, self.inflight_packets[0][0] + self.retransmit_timeout - current_time)
+            return min(retransmit_timeout, connection_timeout)
+        else:
+            return connection_timeout
 
     def timed_out(self, current_time):
         if current_time > self.last_updated + self.connection_timeout:
