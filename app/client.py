@@ -24,7 +24,8 @@ class ClientConnection(Connection):
     def handle_frame(self, frame: Frame):
         if isinstance(frame, ExitFrame):
             logging.info("Server closed connection.")
-            self.connection_manager.remove_connection(self)
+            self.close()
+            #self.connection_manager.remove_connection(self)
             return
         elif isinstance(frame, DataFrame):
             # logging.info("Recieved data frame with stream id " +
@@ -36,6 +37,7 @@ class ClientConnection(Connection):
                 # ask for checksum
                 self.frame_queue.append(ChecksumFrame(
                     frame.header.stream_id, self.streams[frame.header.stream_id].path))
+                
                 # self.streams[frame.header.stream_id].close()
                 # del self.streams[frame.header.stream_id]
             else:
@@ -64,6 +66,11 @@ class ClientConnection(Connection):
                 self.streams[frame.header.stream_id].remove_file()
 
             del self.streams[frame.header.stream_id]
+
+            if len(self.streams.items()) == 0:
+                self.queue_frame(ExitFrame(), transmit_first=True)
+                logging.info("Client closing connection.")
+                self.close() # pray
 
         elif isinstance(frame, ErrorFrame):
             logging.error(

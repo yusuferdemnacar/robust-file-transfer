@@ -29,6 +29,8 @@ class Connection:
         self.connection_timeout = 5 * 60  # seconds
         self.last_updated = time.time()
 
+        self.closed = False
+
         # small optimization s.t. flush() does not check every single inflight packet every single time
         self.retransmit_timeout_triggered = False
 
@@ -62,19 +64,37 @@ class Connection:
         # transmitted. Connection dies after a certain amount of retransmissions.
         # (2) TODO: setting checksum (and ACK number) in packet objects
         # (3) TODO: packet_id is probably also increased in empty packets
+        
+        logging.info(f"flush() inflight_packet = {len(self.inflight_packets)}")
 
         if self.retransmit_timeout_triggered:
             current_time = time.time()
+            no_ack_expected = []
             retransmitted = []
             for tp in self.inflight_packets:
                 timestamp, packet = tp
                 if current_time > timestamp + self.retransmit_timeout:
-                    retransmitted.append(tp)
-                    self.connection_manager.sendto(packet.pack(), (self.remote_host, self.remote_port))
+                    logging.info(f"retransmitting packet: {packet}")
+                    # if the packet contained at least one frame other than AckFrame or an ExitFrame send a retransmit
+                    if next((frame for frame in packet.frames if
+                            (type(frame) != AckFrame) and
+                            (type(frame) != ExitFrame)
+                            ), None):
+                        logging.info("retransmitting ack eliciting packet")
+                        retransmitted.append(tp)
+                        self.connection_manager.sendto(packet.pack(), (self.remote_host, self.remote_port))
+                    else:
+                        logging.info("no ack expected for retransmitted packet")
+                        no_ack_expected.append(tp)
+            for tp in no_ack_expected:
+                _, packet = tp
+                self.inflight_packets.remove(tp)
+                self.inflight_bytes -= len(packet.pack())
             for tp in retransmitted:
                 timestamp, packet = tp
                 self.inflight_packets.remove(tp)
                 self.inflight_packets.appendleft((current_time, packet))
+            self.retransmit_timeout_triggered = False
 
         # max_flush_bytes is the amount of bytes that we are allowed to send out according to the current send window:
         if not self.connection_id and len(self.inflight_packets) == 1:
@@ -82,6 +102,8 @@ class Connection:
             max_flush_bytes = 0
         else:
             max_flush_bytes = self.max_inflight_bytes - self.inflight_bytes
+
+        logging.info(f"max_flush_bytes = {max_flush_bytes}")
 
         to_be_flushed_packets: list[Packet] = []
         to_be_flushed_bytes: int = 0
@@ -104,6 +126,7 @@ class Connection:
                     to_be_packaged_bytes + len(self.frame_queue[0])
 
                 if predicted_packet_size > self.max_packet_size:
+                    logging.info("A")
                     # this should only happen if the to_be_packaged_frames list is not empty, otherwise...
                     if len(to_be_packaged_frames) == 0:
                         logging.error(
@@ -111,18 +134,25 @@ class Connection:
                         # since we can do nothing here, the ill-sized frame is now clogging the queue
                     break
                 elif to_be_flushed_bytes + predicted_packet_size > max_flush_bytes:
+                    logging.info("B")
                     # let's not trust our own implementation and log an error in case the send window size is too small.
                     if len(to_be_packaged_frames) == 0 and predicted_packet_size > self.max_inflight_bytes:
                         logging.error(
                             f"The frame {self.frame_queue[0]} cannot be sent without exceeding the send window!")
                         # since we can do nothing here, the ill-sized frame/the ill-sized send window is now clogging the queue
+                    break
                 else:
+                    logging.info("C")
                     # we can add this frame to the packet!
                     frame = self.frame_queue.pop()
                     to_be_packaged_frames.append(frame)
                     to_be_packaged_bytes += len(frame)
 
+                logging.info(f"{predicted_packet_size} {to_be_packaged_frames}")
+            
+
             if len(to_be_packaged_frames) == 0:
+                logging.info("NO FRAMES TO BUILD PACKETS UH OH")
                 # we cannot build another packet with the frame queue.
                 # it was either empty, or the max. packet size is exceeded, or the send window is exceeded.
                 break
@@ -139,7 +169,7 @@ class Connection:
             self.inflight_bytes += len(data)
             self.inflight_packets.appendleft((time.time(), packet))
             logging.info(f"sending packet: {self.inflight_packets[-1]}")
-            self.connection_manager.socket.sendto(
+            self.connection_manager.sendto(
                 data, (self.remote_host, self.remote_port)
             )
 
@@ -161,8 +191,7 @@ class Connection:
 
     def timed_out(self, current_time):
         if current_time > self.last_updated + self.connection_timeout:
-            # TODO save state that connection is closed due to timeout
-            pass
+            self.close()
         if len(self.inflight_packets) > 0:
             if current_time > self.inflight_packets[0][0] + self.retransmit_timeout:
                 self.retransmit_timeout_triggered = True  # in that case, flush() needs to do retransmissions
@@ -185,10 +214,10 @@ class Connection:
         if packet.header.version != 1:
             logging.info("Packet dropped due to invalid header")
             return
-        elif packet.header.connection_id != self.connection_id:
-            logging.info("Packet dropped due to invalid Connection ID")
-            return
-        elif not packet.correctChecksum():
+        # elif packet.header.connection_id != self.connection_id:
+        #     logging.info("Packet dropped due to invalid Connection ID")
+        #     return
+        elif not packet.correctChecksum:
             logging.info("Packet dropped due to invalid checksum")
             return
 
@@ -241,7 +270,7 @@ class Connection:
         # - inserts at front of queue (will be transmitted first)
         # - reverses order of insertion if called multiple times (like a stack)
 
-        logging.info(f"queue_frame({type(frame)})")
+        #logging.info(f"queue_frame({type(frame)})")
 
         if transmit_first is not None:
             if transmit_first:
@@ -280,13 +309,16 @@ class Connection:
                 logging.warning(
                     f"Scheduled unknown frame type {frame} for transmission")
 
+    def close(self):
+        self.flush()
+        self.closed = True
+
     def is_closed(self):
         # returns if this connection is closed
         # connection is closed when
         # transmission is done, or connection timed out, or on irrecoverable error
         # depends on both the state of Connection as well as ConnectionHandler
-
-        pass
+        return self.closed
 
     @abstractmethod
     def handle_frame(self, frame: Frame):

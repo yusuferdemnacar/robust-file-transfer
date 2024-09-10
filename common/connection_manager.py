@@ -107,7 +107,7 @@ class ConnectionTerminatedEvent:
 
 class ConnectionManager:
 
-    def __init__(self, local_port=0, p = 1, q = 0) -> None:
+    def __init__(self, local_port=0, p = 0, q = 0) -> None:
         self.socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
         # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
@@ -139,6 +139,7 @@ class ConnectionManager:
     def loop(self):
 
         while True:
+            logging.info(f"number of connections open: {len(self.connections)}")
 
             for con in self.connections.values():
                 if not con.is_closed():
@@ -157,7 +158,9 @@ class ConnectionManager:
                 key=lambda tt: tt[0],
                 default=(None, None)
             )
-            logging.info(f"select: {timeout} {timedout_connection}")
+            if timedout_connection:
+                logging.info(f"select: {timeout} {timedout_connection.last_updated} {current_time}")
+                logging.info(f"number of inflight packets: {len(timedout_connection.inflight_packets)}")
             rlist, _, _ = select.select([self.socket], [], [], timeout)
 
             if len(rlist) == 0:
@@ -199,12 +202,12 @@ class ConnectionManager:
 
     def sendto(self, data, address):
         if self.lastSendSuccessful:
-            if random.uniform(0, 1) > self.p:
+            if random.uniform(0, 1) >= self.p:
                 self.socket.sendto(data, address)
             else:
                 self.lastSendSuccessful = False
         else:
-            if random.uniform(0, 1) > self.q:
+            if random.uniform(0, 1) >= self.q:
                 self.lastSendSuccessful = True
                 self.socket.sendto(data, address)
             else:

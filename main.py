@@ -36,7 +36,6 @@ def main():
         '--host',
         action='store',
         type=str,
-        default='localhost',
         help="specifies the host to connect to (default: localhost)",
     )
     parser.add_argument(
