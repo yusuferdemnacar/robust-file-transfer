@@ -52,6 +52,7 @@ class Connection:
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
         self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
+        self.last_ack_sent = None # this is the packet that the last sent
 
     def flush(self):
         """
@@ -66,6 +67,7 @@ class Connection:
         # (3) TODO: packet_id is probably also increased in empty packets
         
         logging.info(f"entering flush(): number of inflight packets: {len(self.inflight_packets)}")
+        # logging.info(f"entering flush(): inflight packets: {self.inflight_packets}")
 
         if self.retransmit_timeout_triggered:
             current_time = time.time()
@@ -156,13 +158,18 @@ class Connection:
 
         for packet in to_be_flushed_packets:
             data = packet.pack()
-            self.inflight_bytes += len(data)
             t = time.time()
             # if the packet contained at least one frame other than AckFrame save an timestamp
+            # # if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
+            # #     self.inflight_packets.appendleft((t, packet))
+            # # else:
+            # #     self.inflight_packets.appendleft((None, packet))
+            # ack everything
             if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
                 self.inflight_packets.appendleft((t, packet))
+                self.inflight_bytes += len(data)
             else:
-                self.inflight_packets.appendleft((None, packet))
+                self.last_ack_sent = packet
             logging.info(f"sending packet {t}, packet_id = {packet.header.packet_id}, {[type(frame).__name__ for frame in packet.frames]}")
             self.connection_manager.sendto(
                 data, (self.remote_host, self.remote_port)
@@ -177,19 +184,29 @@ class Connection:
         # self.last_updated = recv timestamp of last seen packet from peer
         connection_timeout = max(0, self.last_updated + self.connection_timeout - current_time)
 
-        if len(self.inflight_packets) != 0 and self.inflight_packets[0][0] != None:
-            # self.inflight_packets[0][0] = _send_ timestamp of "oldest" inflight packet (is updated upon retransmission)
-            retransmit_timeout = max(0, self.inflight_packets[0][0] + self.retransmit_timeout - current_time)
-            return min(retransmit_timeout, connection_timeout)
+        # if there is any non-ack frame in any of the inflight packets, the time until the next timeout event is not direcly the connection timeout value, it needs to be calculated
+        if len(self.inflight_packets) != 0 and next((tp for tp in self.inflight_packets if tp[1].contains_non_ack_frame()), None) is not None:
+            # find the oldest inflight packet that contains a non-ack frame
+            oldest_inflight_packet_with_non_ack_frame_timestamp, oldest_inflight_packet_with_non_ack_frame = next((tp for tp in self.inflight_packets if tp[1].contains_non_ack_frame()), None)
+            oldest_inflight_packet_with_non_ack_frame_timeout = max(0, oldest_inflight_packet_with_non_ack_frame_timestamp + self.retransmit_timeout - current_time)
+            return min(connection_timeout, oldest_inflight_packet_with_non_ack_frame_timeout)
         else:
             return connection_timeout
 
     def timed_out(self, current_time):
+        logging.info(f"main timed_out() called")
         if current_time > self.last_updated + self.connection_timeout:
+            logging.info(f"branch 1")
             self.close()
+        logging.info(f"exit timed_out()")
         if len(self.inflight_packets) > 0:
-            if current_time > self.inflight_packets[0][0] + self.retransmit_timeout:
+            logging.info(f"branch 3")
+            logging.info((current_time > self.inflight_packets[0][0] + self.retransmit_timeout))
+            logging.info(next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None))
+            if (current_time > self.inflight_packets[0][0] + self.retransmit_timeout) and next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None) is not None:
+                logging.info(f"branch 4")
                 self.retransmit_timeout_triggered = True  # in that case, flush() needs to do retransmissions
+                
 
     def update(self, packet: Packet, addrinfo):
         # this function applies updates to the connection/streams from a packets.
@@ -215,8 +232,11 @@ class Connection:
         elif not packet.correctChecksum:
             logging.info("Packet dropped due to invalid checksum")
             return
-
-        if packet.header.packet_id == self.next_recv_packet_id:
+        if packet.header.packet_id < self.next_recv_packet_id:
+            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
+            self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
+            return
+        elif packet.header.packet_id == self.next_recv_packet_id:
             self.next_recv_packet_id += 1
 
             # TODO: increase the congestion window here
@@ -227,8 +247,7 @@ class Connection:
 
             # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
             if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
-                self.queue_frame(AckFrame(packet.header.packet_id + 1), transmit_first=True)
-
+                self.queue_frame(AckFrame(packet.header.packet_id), transmit_first=True)
         else:
             # drop the packet since we don't allow reordered packets for now.
             logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id})")
@@ -239,7 +258,7 @@ class Connection:
         for frame in packet.frames:
             if isinstance(frame, AckFrame):
                 acked_packet_id = frame.header.packet_id
-                acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id < acked_packet_id]
+                acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id <= acked_packet_id]
                 for tp in acked_packets:
                     self.inflight_packets.remove(tp)
                     self.inflight_bytes -= len(tp[1].pack())

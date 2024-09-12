@@ -107,7 +107,7 @@ class ConnectionTerminatedEvent:
 
 class ConnectionManager:
 
-    def __init__(self, local_port=0, p = 0, q = 0) -> None:
+    def __init__(self, local_port=0, p = 0, q = 1) -> None:
         self.socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
         # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
@@ -152,19 +152,13 @@ class ConnectionManager:
 
             # timeout so that retransmissions can be handled
             current_time = time.time()
-            timeout, timedout_connection = min(
-                filter(
-                    lambda tc: tc[0] is not None, # connections without inflight packets don't have a timeout
-                    [(c.current_timeout(current_time), c) for c in self.connections.values()]
-                ),
-                key=lambda tt: tt[0],
-                default=(None, None)
-            )
+            timeout, timedout_connection = min([(c.current_timeout(current_time), c) for c in self.connections.values()], default=(None, None))
             logging.info(f"select({timeout})...")
             rlist, _, _ = select.select([self.socket], [], [], timeout)
 
             if len(rlist) == 0:
                 # timeout occured!
+                logging.info("rlist is empty")
                 timedout_connection.timed_out(time.time())
                 continue
 
@@ -203,13 +197,14 @@ class ConnectionManager:
     def sendto(self, data, address):
         #self.socket.sendto(data, address)
         #return
+        logging.info(f"p: {self.p}, q: {self.q}")
         if self.lastSendSuccessful:
-            if random.uniform(0, 1) >= self.p:
+            if random.uniform(0, 1) >= self.p: # 1 - p
                 self.socket.sendto(data, address)
             else:
                 self.lastSendSuccessful = False
         else:
-            if random.uniform(0, 1) >= self.q:
+            if random.uniform(0, 1) >= self.q: # 1 - q
                 self.lastSendSuccessful = True
                 self.socket.sendto(data, address)
             else:

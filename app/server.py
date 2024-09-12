@@ -66,7 +66,7 @@ class ServerConnection(Connection):
                     stream.file.seek(i)
                     data = stream.file.read(128)
                     self.queue_frame(DataFrame(stream.stream_id, i, data))
-                    logging.info(f"{i / 128} of {stream.get_file_size() / 128} frames queued ({len(data)} bytes)")
+                    # logging.info(f"{i / 128} of {stream.get_file_size() / 128} frames queued ({len(data)} bytes)")
             else:
                 for i in range(frame.header.offset, frame.header.offset + frame.header.length, 128):
                     stream.file.seek(i)

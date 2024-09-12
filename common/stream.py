@@ -37,7 +37,6 @@ class Stream:
         self.file.close()
         self.is_closed = True
         # if the file is empty, delete it
-        print(f"File size: {self.get_file_size()}")
         if self.get_file_size() == 0:
             pathlib.Path(self.path).unlink()
 

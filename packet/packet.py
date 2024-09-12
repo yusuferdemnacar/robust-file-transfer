@@ -121,3 +121,6 @@ class Packet:
             "header": self.header.to_dict(),
             "frames": [frame.to_dict() for frame in self.frames]
         }
+    
+    def contains_non_ack_frame(self):
+        return any([not isinstance(frame, AckFrame) for frame in self.frames])

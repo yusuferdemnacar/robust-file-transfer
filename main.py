@@ -5,6 +5,8 @@ import argparse
 import textwrap
 import sys
 import logging
+import time
+import pathlib
 
 def main():
     parser = argparse.ArgumentParser(
@@ -49,15 +51,15 @@ def main():
         '-p',
         action='store',
         type=float,
-        default=0.5,
-        help="specifies the probability of transitioning from the success state to the failure state (default: 0.5)",
+        default=0,
+        help="specifies the probability of transitioning from the success state to the failure state (default: 0)",
     )
     parser.add_argument(
         '-q',
         action='store',
         type=float,
-        default=0.5,
-        help="specifies the probability of transitioning from the failure state back to the failure state (default: 0.5)",
+        default=0,
+        help="specifies the probability of transitioning from the failure state back to the failure state (default: 0)",
     )
     parser.add_argument(
         'file',
@@ -76,12 +78,18 @@ def main():
     if not 0 <= args.p <= 1 or not 0 <= args.q <= 1:
         sys.exit("p and q probabilities must be between 0 and 1")
 
-    logging.basicConfig(level=logging.INFO, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
+    logging.basicConfig(level=logging.ERROR, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
         run_server(args.port, args.p, args.q)
     else:
+        start = time.time()
         run_client(args.host, args.port, args.file, args.p, args.q)
+        end = time.time()
+        print(f"Time taken: {end - start}")
+        file_size = sum([pathlib.Path(file).stat().st_size for file in args.file])
+        print(f"Total file size: {file_size}")
+        print(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
 
 if __name__ == "__main__":
     main()

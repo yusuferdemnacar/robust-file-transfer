@@ -56,9 +56,6 @@ class ClientConnection(Connection):
             logging.info(
                 "Closed stream with stream id " + str(frame.header.stream_id))
             # Check if the checksum matches the file, if not delete the file
-
-            print("Local checksum: " + str(local_checksum))
-            print("Remote checksum: " + str(remote_checksum))
             if local_checksum == remote_checksum:
                 logging.info("Checksums match")
             else:
@@ -126,7 +123,7 @@ class ClientConnection(Connection):
         self.update(packet, (host, port))
 
 
-def run_client(host, port, files, p = 1, q = 0):
+def run_client(host, port, files, p = 0, q = 1):
     connection_manager = ConnectionManager(0, p, q)
     connection = ClientConnection(connection_manager, host, port, files)
     logging.info(
