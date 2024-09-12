@@ -76,7 +76,7 @@ def main():
     if not 0 <= args.p <= 1 or not 0 <= args.q <= 1:
         sys.exit("p and q probabilities must be between 0 and 1")
 
-    logging.basicConfig(level=logging.INFO, format="[ %(levelname)s ] %(filename)s: %(message)s")
+    logging.basicConfig(level=logging.INFO, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
         run_server(args.port, args.p, args.q)

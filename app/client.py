@@ -78,6 +78,9 @@ class ClientConnection(Connection):
             # close and remove stream
             self.streams[frame.header.stream_id].close()
             del self.streams[frame.header.stream_id]
+            if all((stream.is_closed for stream in self.streams.values())):
+                self.queue_frame(ExitFrame())
+                self.close()
         elif isinstance(frame, AckFrame):
             # ignore that, is already handled in connection.py
             pass
@@ -131,7 +134,7 @@ def run_client(host, port, files, p = 1, q = 0):
 
     connection_manager.add_connection(connection)
     for event in connection_manager.loop():
-        logging.info(event)
+        logging.info(type(event).__name__)
 
         if isinstance(event, UnknownConnectionIDEvent):
             # ignore unknown packet, except if connection.connection_id is zero

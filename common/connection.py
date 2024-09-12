@@ -65,7 +65,7 @@ class Connection:
         # (2) TODO: setting checksum (and ACK number) in packet objects
         # (3) TODO: packet_id is probably also increased in empty packets
         
-        logging.info(f"flush() inflight_packet = {len(self.inflight_packets)}")
+        logging.info(f"entering flush(): number of inflight packets: {len(self.inflight_packets)}")
 
         if self.retransmit_timeout_triggered:
             current_time = time.time()
@@ -74,13 +74,9 @@ class Connection:
             for tp in self.inflight_packets:
                 timestamp, packet = tp
                 if current_time > timestamp + self.retransmit_timeout:
-                    logging.info(f"retransmitting packet: {packet}")
                     # if the packet contained at least one frame other than AckFrame or an ExitFrame send a retransmit
-                    if next((frame for frame in packet.frames if
-                            (type(frame) != AckFrame) and
-                            (type(frame) != ExitFrame)
-                            ), None):
-                        logging.info("retransmitting ack eliciting packet")
+                    if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
+                        logging.info(f"retransmitting packet, packet_id = {packet.header.packet_id}, {[type(frame).__name__ for frame in packet.frames]}")
                         retransmitted.append(tp)
                         self.connection_manager.sendto(packet.pack(), (self.remote_host, self.remote_port))
                     else:
@@ -126,7 +122,6 @@ class Connection:
                     to_be_packaged_bytes + len(self.frame_queue[0])
 
                 if predicted_packet_size > self.max_packet_size:
-                    logging.info("A")
                     # this should only happen if the to_be_packaged_frames list is not empty, otherwise...
                     if len(to_be_packaged_frames) == 0:
                         logging.error(
@@ -134,7 +129,6 @@ class Connection:
                         # since we can do nothing here, the ill-sized frame is now clogging the queue
                     break
                 elif to_be_flushed_bytes + predicted_packet_size > max_flush_bytes:
-                    logging.info("B")
                     # let's not trust our own implementation and log an error in case the send window size is too small.
                     if len(to_be_packaged_frames) == 0 and predicted_packet_size > self.max_inflight_bytes:
                         logging.error(
@@ -142,17 +136,13 @@ class Connection:
                         # since we can do nothing here, the ill-sized frame/the ill-sized send window is now clogging the queue
                     break
                 else:
-                    logging.info("C")
                     # we can add this frame to the packet!
                     frame = self.frame_queue.pop()
                     to_be_packaged_frames.append(frame)
                     to_be_packaged_bytes += len(frame)
-
-                logging.info(f"{predicted_packet_size} {to_be_packaged_frames}")
             
 
             if len(to_be_packaged_frames) == 0:
-                logging.info("NO FRAMES TO BUILD PACKETS UH OH")
                 # we cannot build another packet with the frame queue.
                 # it was either empty, or the max. packet size is exceeded, or the send window is exceeded.
                 break
@@ -167,8 +157,13 @@ class Connection:
         for packet in to_be_flushed_packets:
             data = packet.pack()
             self.inflight_bytes += len(data)
-            self.inflight_packets.appendleft((time.time(), packet))
-            logging.info(f"sending packet: {self.inflight_packets[-1]}")
+            t = time.time()
+            # if the packet contained at least one frame other than AckFrame save an timestamp
+            if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
+                self.inflight_packets.appendleft((t, packet))
+            else:
+                self.inflight_packets.appendleft((None, packet))
+            logging.info(f"sending packet {t}, packet_id = {packet.header.packet_id}, {[type(frame).__name__ for frame in packet.frames]}")
             self.connection_manager.sendto(
                 data, (self.remote_host, self.remote_port)
             )
@@ -231,10 +226,7 @@ class Connection:
                 pass # TODO add
 
             # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
-            if next((frame for frame in packet.frames if
-                     (type(frame) != AckFrame and
-                      type(frame) != ExitFrame)
-                     ), None):
+            if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
                 self.queue_frame(AckFrame(packet.header.packet_id + 1), transmit_first=True)
 
         else:

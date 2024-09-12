@@ -30,7 +30,8 @@ class ServerConnection(Connection):
         elif isinstance(frame, ExitFrame):
             logging.info("got an exit frame on connection id " +
                          str(self.connection_id))
-            self.connection_manager.remove_connection(self)
+            self.close()
+            # self.connection_manager.remove_connection(self)
             return
 
         elif isinstance(frame, ReadFrame):
@@ -103,7 +104,7 @@ def run_server(port: int, p = 1, q = 0):
         f"server listening at {connection_manager.local_address} on port {connection_manager.local_port}")
 
     for event in connection_manager.loop():
-        logging.info(event)
+        logging.info(type(event).__name__)
         # Send to different ServerConnections depending on header
         if isinstance(event, UnknownConnectionIDEvent):
             logging.info("got an unknown connection id event, ignoring...")

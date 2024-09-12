@@ -115,7 +115,7 @@ class ConnectionManager:
         self.socket.bind(("", local_port))
 
         self.local_address, self.local_port, _, _ = self.socket.getsockname()
-        logging.info(
+        logging.debug(
             f"local address is {self.local_address} at port {self.local_port}")
 
         self.connections: dict[int, common.Connection] = {}
@@ -139,14 +139,16 @@ class ConnectionManager:
     def loop(self):
 
         while True:
-            logging.info(f"number of connections open: {len(self.connections)}")
+            logging.info(f"number of known connections: {len(self.connections)}")
 
+            to_be_deleted = []
             for con in self.connections.values():
-                if not con.is_closed():
-                    con.flush()
-                else:
+                con.flush()
+                if con.is_closed():
                     yield ConnectionTerminatedEvent(con)
-                    del self.connections[con.connection_id]
+                    to_be_deleted.append(con.connection_id)
+            for key in to_be_deleted:
+                del self.connections[key]
 
             # timeout so that retransmissions can be handled
             current_time = time.time()
@@ -158,9 +160,7 @@ class ConnectionManager:
                 key=lambda tt: tt[0],
                 default=(None, None)
             )
-            if timedout_connection:
-                logging.info(f"select: {timeout} {timedout_connection.last_updated} {current_time}")
-                logging.info(f"number of inflight packets: {len(timedout_connection.inflight_packets)}")
+            logging.info(f"select({timeout})...")
             rlist, _, _ = select.select([self.socket], [], [], timeout)
 
             if len(rlist) == 0:
@@ -181,7 +181,7 @@ class ConnectionManager:
                 logging.error(str(e))
                 continue
 
-            logging.info(f"received packet: {packet}")
+            logging.info(f"received packet: {packet.header.packet_id}")
 
             # ignore any packet with unknown conn_id as per RFC section 5.1.2
             if connection_id == 0:
@@ -201,6 +201,8 @@ class ConnectionManager:
                 self.connections[connection_id].update(packet, addrinfo)
 
     def sendto(self, data, address):
+        #self.socket.sendto(data, address)
+        #return
         if self.lastSendSuccessful:
             if random.uniform(0, 1) >= self.p:
                 self.socket.sendto(data, address)
