@@ -177,7 +177,7 @@ class Connection:
         # self.last_updated = recv timestamp of last seen packet from peer
         connection_timeout = max(0, self.last_updated + self.connection_timeout - current_time)
 
-        if len(self.inflight_packets) != 0:
+        if len(self.inflight_packets) != 0 and self.inflight_packets[0][0] != None:
             # self.inflight_packets[0][0] = _send_ timestamp of "oldest" inflight packet (is updated upon retransmission)
             retransmit_timeout = max(0, self.inflight_packets[0][0] + self.retransmit_timeout - current_time)
             return min(retransmit_timeout, connection_timeout)
@@ -231,6 +231,7 @@ class Connection:
 
         else:
             # drop the packet since we don't allow reordered packets for now.
+            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id})")
             return
 
         # TODO: detect increase/decrease of send window size.
@@ -242,6 +243,7 @@ class Connection:
                 for tp in acked_packets:
                     self.inflight_packets.remove(tp)
                     self.inflight_bytes -= len(tp[1].pack())
+                    logging.info(f"Received ACK for packet_id {acked_packet_id}")
 
             self.handle_frame(frame)
 
