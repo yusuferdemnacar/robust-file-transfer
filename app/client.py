@@ -66,7 +66,7 @@ class ClientConnection(Connection):
                 logging.info("Checksums match")
             else:
                 logging.error("Checksums do not match, deleting file")
-                # self.streams[frame.header.stream_id].remove_file()
+                self.streams[frame.header.stream_id].remove_file()
 
             del self.streams[frame.header.stream_id]
 
