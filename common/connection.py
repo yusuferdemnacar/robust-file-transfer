@@ -51,8 +51,8 @@ class Connection:
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
-        self.receive_window = 1000
-        self.receive_buffer: dict[int, Packet] = {}
+        self.receive_window = 1e6
+        self.receive_buffer: list[Packet] = []
         self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
         self.last_ack_sent = None # this is the packet that the last sent
@@ -243,32 +243,32 @@ class Connection:
         elif not packet.correctChecksum:
             logging.info("Packet dropped due to invalid checksum")
             return
-
+        
+        logging.info(f"Received packet_id {packet.header.packet_id}")
+            
         if packet.header.packet_id < self.next_recv_packet_id:
-            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK for {self.last_ack_sent.frames[0].header.packet_id}")
+            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}")
+            logging.info(f"retransmitting ACK for {self.last_ack_sent.frames[0].header.packet_id}")
             self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
             return
-        elif packet.header.packet_id <= self.next_recv_packet_id + self.receive_window:
-            if packet.header.packet_id in self.receive_buffer:
-                logging.info(f"Recieved duplicate {packet.header.packet_id})")
-            else:
-                self.receive_buffer[packet.header.packet_id] = packet
-        else:
-            # drop the packet since it's outside of recieve window.
-            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.receive_window} but got packet_id {packet.header.packet_id})")
-            return
-
-        # TODO: detect increase/decrease of send window size.
-        if self.next_recv_packet_id not in self.receive_buffer:
+        elif packet.header.packet_id == self.next_recv_packet_id:
+            logging.info(f"Received packet_id {packet.header.packet_id} as expected")
+            self.receive_buffer.append(packet)
+            self.next_recv_packet_id += 1
+        elif (packet.header.packet_id > self.next_recv_packet_id) and ((not self.receive_buffer) or (packet.header.packet_id not in [packet.header.packet_id for packet in self.receive_buffer])) and (packet.header.packet_id < self.next_recv_packet_id + self.receive_window):
+            logging.info(f"Received packet_id {packet.header.packet_id} but expected packet_id {self.next_recv_packet_id}, buffering packet")
+            self.receive_buffer.append(packet)
+        elif (packet.header.packet_id > self.next_recv_packet_id + self.receive_window) or (packet.header.packet_id in self.receive_buffer):
+            logging.info(f"Received packet_id {packet.header.packet_id} but expected packet_id {self.next_recv_packet_id}, dropping packet")
             return
 
         need_ACK = False
-        while self.next_recv_packet_id in self.receive_buffer:
+        while self.receive_buffer:
             # print(self.next_recv_packet_id)
-            next_packet = self.receive_buffer.pop(self.next_recv_packet_id)
-            logging.info(f"Handle packet {self.next_recv_packet_id}")
+            next_packet = self.receive_buffer[0]
+            del self.receive_buffer[0]
+            logging.info(f"Handle packet {next_packet.header.packet_id}")
             for frame in next_packet.frames:
-
                 if isinstance(frame, AckFrame):
                     acked_packet_id = frame.header.packet_id
                     acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id <= acked_packet_id]
@@ -282,7 +282,6 @@ class Connection:
             if next((frame for frame in next_packet.frames if type(frame) != AckFrame), None):
                 need_ACK = True
                 last_handled_packet_id = next_packet.header.packet_id
-            self.next_recv_packet_id += 1
         if need_ACK:
             self.queue_frame(AckFrame(last_handled_packet_id), transmit_first=True)
 
@@ -344,16 +343,16 @@ class Connection:
 
     def increase_congestion_window(self):
         if self.is_slowstart:
-            # self.max_inflight_bytes = self.max_inflight_bytes + self.max_packet_size
+            self.max_inflight_bytes = self.max_inflight_bytes + self.max_packet_size
             if self.max_inflight_bytes > self.slowstart_threshold:
                 self.is_slowstart = False
             logging.info(f"Congesiton window increased quickly to {self.max_inflight_bytes}")
         else:
-            # self.max_inflight_bytes = self.max_inflight_bytes + (self.max_packet_size * (self.max_packet_size / self.max_inflight_bytes))
+            self.max_inflight_bytes = self.max_inflight_bytes + (self.max_packet_size * (self.max_packet_size / self.max_inflight_bytes))
             logging.info(f"Congesiton window increased normally to {self.max_inflight_bytes}")
 
     def decrease_congestion_window(self):
-        # self.max_inflight_bytes = max(self.max_inflight_bytes / 2, 1000)
+        self.max_inflight_bytes = max(self.max_inflight_bytes / 2, 1000)
         logging.info(f"Congesiton window decreased to {self.max_inflight_bytes}")
 
     def close(self):
