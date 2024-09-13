@@ -10,7 +10,8 @@ from frame import *
 
 import logging
 import signal
-
+import pathlib
+import common.util as util
 
 class ClientConnection(Connection):
     stream_id_index = 0  # Returns 1 first time due to returning ++0
@@ -19,9 +20,14 @@ class ClientConnection(Connection):
         self.connection_id = None  # will be initialized upon reply from server
         super().__init__(connection_manager, host, port, 0)
 
-        for file in files:
-            self.command_read(file)
-
+        for file_path in files:
+            if pathlib.Path(file_path).exists():
+                logging.info("File exists, requesting the rest of the file")
+                file_size = pathlib.Path(file_path).stat().st_size
+                checksum_so_far = util.crc32_file_checksum(file_path, offset=0, length=file_size)
+                self.command_read(file_path, offset=file_size, length=0, checkChecksum=True, checksum=checksum_so_far)
+            else:
+                self.command_read(file_path)
     def handle_frame(self, frame: Frame):
         if isinstance(frame, ExitFrame):
             logging.info("Server closed connection.")
@@ -73,8 +79,17 @@ class ClientConnection(Connection):
             logging.error(
                 "Recieved error frame on stream id " + str(frame.header.stream_id) + " with message: " + frame.payload.data)
             # close and remove stream
-            self.streams[frame.header.stream_id].close()
-            del self.streams[frame.header.stream_id]
+            if frame.header.stream_id == 0:
+                logging.error("Error on stream id 0, closing connection")
+                stream_ids = list(self.streams.keys())
+                for stream_id in stream_ids:
+                    self.streams[stream_id].close()
+                    del self.streams[stream_id]
+                self.queue_frame(ExitFrame())
+                self.close()
+            else:
+                self.streams[frame.header.stream_id].close()
+                del self.streams[frame.header.stream_id]
             if all((stream.is_closed for stream in self.streams.values())):
                 self.queue_frame(ExitFrame())
                 self.close()
@@ -90,7 +105,7 @@ class ClientConnection(Connection):
         # TODO continue read from partially completed file (maybe use "a" mode instead?)
         stream_id = self.next_stream_id()
         self.streams[stream_id] = Stream.open(stream_id, path)
-        flags = 1 if checkChecksum else 0
+        flags = 0 if not checkChecksum else 0b00000001
         self.queue_frame(ReadFrame(stream_id, flags,
                          offset, length, checksum, path))
 

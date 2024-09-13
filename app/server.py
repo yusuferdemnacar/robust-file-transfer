@@ -11,6 +11,7 @@ from frame import *
 
 import logging
 import pathlib
+import common.util as util
 
 
 class ServerConnection(Connection):
@@ -53,7 +54,14 @@ class ServerConnection(Connection):
                 self.queue_frame(ErrorFrame(
                     0, "offset+length greater than file size"))
                 return
-            # TODO: handle cheksum checking
+            
+            if frame.header.flags & 0b00000001:
+                logging.info("Resumption chekcsum check requested")
+                checksum_until_offset = util.crc32_file_checksum(frame.payload.data, offset=0, length=frame.header.offset)
+                if frame.header.checksum != checksum_until_offset:
+                    self.queue_frame(ErrorFrame(
+                        0, "checksum mismatch"))
+                    return
 
             # create a new stream if everything is fine
             stream = Stream(frame.header.stream_id, frame.payload.data)
@@ -62,7 +70,7 @@ class ServerConnection(Connection):
             # if the frame has no offset and length, send the entire file
             # TODO: check if this is the correct way to handle this
             if frame.header.length == 0:
-                for i in range(0, stream.get_file_size(), 128):
+                for i in range(frame.header.offset, stream.get_file_size(), 128):
                     stream.file.seek(i)
                     data = stream.file.read(128)
                     self.queue_frame(DataFrame(stream.stream_id, i, data))
@@ -73,7 +81,7 @@ class ServerConnection(Connection):
                     data = stream.file.read(128)
                     self.queue_frame(DataFrame(stream.stream_id, i, data))
             # send an empty DataFrame to signal the end of the stream
-            self.queue_frame(DataFrame(stream.stream_id, i, b""))
+            self.queue_frame(DataFrame(stream.stream_id, i if frame.header.length != 0 else frame.header.offset, b""))
             logging.info("finished sending file")
             return
 

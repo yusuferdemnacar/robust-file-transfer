@@ -1,5 +1,5 @@
 import pathlib
-import hashlib
+import common.util as util
 import json
 
 
@@ -9,7 +9,7 @@ class Stream:
         if not pathlib.Path(path).exists():
             raise FileNotFoundError(f"File {path} not found")
         self.path = path
-        self.file = open(path, "r+b")
+        self.file = open(path, "a+b")
         # TODO: file checksum calculation
         self.frames_so_far = []  # for debugging
         self.is_closed = False
@@ -28,7 +28,7 @@ class Stream:
 
     @classmethod
     def open(cls, stream_id: int, path: str):
-        open(path, "w+b").close()
+        open(path, "a+b").close()
         return cls(stream_id, path)
 
     def close(self):
@@ -47,11 +47,7 @@ class Stream:
         return pathlib.Path(self.path).stat().st_size
 
     def get_file_checksum(self) -> str:
-        sha256_hash = hashlib.sha256()
-        with open(self.path, "rb") as file:
-            while chunk := file.read(4096):
-                sha256_hash.update(chunk)
-        return sha256_hash.digest()
+        return util.sha256_file_checksum(self.path)
 
     def get_file_name(self) -> str:
         return pathlib.Path(self.path).name
