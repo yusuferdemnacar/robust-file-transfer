@@ -51,7 +51,7 @@ class Stream:
         with open(self.path, "rb") as file:
             while chunk := file.read(4096):
                 sha256_hash.update(chunk)
-        return sha256_hash.hexdigest()
+        return sha256_hash.digest()
 
     def get_file_name(self) -> str:
         return pathlib.Path(self.path).name

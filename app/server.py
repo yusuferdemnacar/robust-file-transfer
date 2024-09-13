@@ -85,7 +85,7 @@ class ServerConnection(Connection):
                 return
             # send the checksum of the file
             self.queue_frame(AnswerFrame(
-                frame.header.stream_id, self.streams[frame.header.stream_id].get_file_checksum().to_bytes(4, "little")))
+                frame.header.stream_id, self.streams[frame.header.stream_id].get_file_checksum()))
             return
 
         else:

@@ -48,7 +48,7 @@ class ClientConnection(Connection):
             logging.info(
                 "File: \"" + self.streams[frame.header.stream_id].path + "\" has been checksummed with value: " + str(frame.payload.data))
             local_checksum = self.streams[frame.header.stream_id].get_file_checksum()
-            remote_checksum = frame.payload.data.hex()
+            remote_checksum = frame.payload.data
             logging.info("Local checksum: " + str(local_checksum))
             logging.info("Remote checksum: " + str(remote_checksum))
             # Immediately close the stream after checksum is received
