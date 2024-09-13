@@ -35,6 +35,12 @@ def main():
         help='creates a rft server instead of a client'
     )
     parser.add_argument(
+        '-v',
+        '--verbose',
+        action='store_true',
+        help='increases the verbosity of the output'
+    )
+    parser.add_argument(
         '--host',
         action='store',
         type=str,
@@ -78,7 +84,12 @@ def main():
     if not 0 <= args.p <= 1 or not 0 <= args.q <= 1:
         sys.exit("p and q probabilities must be between 0 and 1")
 
-    logging.basicConfig(level=logging.ERROR, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
+    if args.verbose:
+        logging_level = logging.INFO
+    else:
+        logging_level = logging.WARNING
+
+    logging.basicConfig(level=logging.WARNING, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
         run_server(args.port, args.p, args.q)
