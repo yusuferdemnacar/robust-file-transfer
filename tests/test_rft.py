@@ -35,9 +35,9 @@ def client_dir(project_path: Path):
 
 
 def test_run(executable, server_dir, client_dir):
-    server = subprocess.Popen([executable, "-s", "--port", "12346"], cwd=server_dir)
+    server = subprocess.Popen([executable, "-s", "--port", "12346", "--verbose"], cwd=server_dir)
     
-    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE"], cwd=client_dir)
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE", "--verbose"], cwd=client_dir)
 
     exitcode = client.wait(timeout=5)
 
