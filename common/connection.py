@@ -50,8 +50,8 @@ class Connection:
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
-        self.recieve_window = 1000
-        self.recieve_buffer: dict[int, Packet] = {}
+        self.receive_window = 1000
+        self.receive_buffer: dict[int, Packet] = {}
         self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
         self.last_ack_sent = None # this is the packet that the last sent
@@ -239,23 +239,23 @@ class Connection:
             logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
             self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
             return
-        elif packet.header.packet_id <= self.next_recv_packet_id + self.recieve_window:
-            if packet.header.packet_id in self.recieve_buffer:
+        elif packet.header.packet_id <= self.next_recv_packet_id + self.receive_window:
+            if packet.header.packet_id in self.receive_buffer:
                 logging.info(f"Recieved duplicate {packet.header.packet_id})")
             else:
-                self.recieve_buffer[packet.header.packet_id] = packet
+                self.receive_buffer[packet.header.packet_id] = packet
         else:
             # drop the packet since it's outside of recieve window.
-            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.recieve_window} but got packet_id {packet.header.packet_id})")
+            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.receive_window} but got packet_id {packet.header.packet_id})")
             return
 
         # TODO: detect increase/decrease of send window size.
-        if self.next_recv_packet_id not in self.recieve_buffer:
+        if self.next_recv_packet_id not in self.receive_buffer:
             return
 
         need_ACK = False
-        while self.next_recv_packet_id in self.recieve_buffer:
-            next_packet = self.recieve_buffer.pop(self.next_recv_packet_id)
+        while self.next_recv_packet_id in self.receive_buffer:
+            next_packet = self.receive_buffer.pop(self.next_recv_packet_id)
             logging.info(f"Handle packet {self.next_recv_packet_id}")
             for frame in next_packet.frames:
 
