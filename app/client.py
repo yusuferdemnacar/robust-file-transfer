@@ -9,6 +9,7 @@ from packet import Packet
 from frame import *
 
 import logging
+import signal
 
 
 class ClientConnection(Connection):
@@ -37,9 +38,6 @@ class ClientConnection(Connection):
                 # ask for checksum
                 self.frame_queue.append(ChecksumFrame(
                     frame.header.stream_id, self.streams[frame.header.stream_id].path))
-                
-                # self.streams[frame.header.stream_id].close()
-                # del self.streams[frame.header.stream_id]
             else:
                 self.streams[frame.header.stream_id].file.write(
                     frame.payload.data)
@@ -123,8 +121,23 @@ class ClientConnection(Connection):
         self.connection_manager.connections[new_id] = self
         self.update(packet, (host, port))
 
-
 def run_client(host, port, files, p = 0, q = 1, ipv6 = False):
+
+    def handle_exit(signum, frame):
+        logging.info("Exiting...")
+        for connection in connection_manager.connections.values():
+            stream_ids = list(connection.streams.keys())
+            for stream_id in stream_ids:
+                connection.streams[stream_id].close()
+                del connection.streams[stream_id]
+            connection.queue_frame(ExitFrame())
+            connection.close()
+
+        exit(0)
+    
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
     connection_manager = ConnectionManager(0, p, q, ipv6)
     connection = ClientConnection(connection_manager, host, port, files)
     logging.info(
