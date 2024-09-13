@@ -330,16 +330,16 @@ class Connection:
 
     def increase_congestion_window(self):
         if self.is_slowstart:
-            self.max_inflight_bytes = self.max_inflight_bytes + self.max_packet_size
+            # self.max_inflight_bytes = self.max_inflight_bytes + self.max_packet_size
             if self.max_inflight_bytes > self.slowstart_threshold:
                 self.is_slowstart = False
             logging.info(f"Congesiton window increased quickly to {self.max_inflight_bytes}")
         else:
-            self.max_inflight_bytes = self.max_inflight_bytes + (self.max_packet_size * (self.max_packet_size / self.max_inflight_bytes))
+            # self.max_inflight_bytes = self.max_inflight_bytes + (self.max_packet_size * (self.max_packet_size / self.max_inflight_bytes))
             logging.info(f"Congesiton window increased normally to {self.max_inflight_bytes}")
 
     def decrease_congestion_window(self):
-        self.max_inflight_bytes = max(self.max_inflight_bytes / 2, 1000)
+        # self.max_inflight_bytes = max(self.max_inflight_bytes / 2, 1000)
         logging.info(f"Congesiton window decreased to {self.max_inflight_bytes}")
 
     def close(self):
