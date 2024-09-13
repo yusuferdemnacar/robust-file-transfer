@@ -5,6 +5,10 @@ import pytest
 import hashlib
 import time
 
+@pytest.fixture(autouse=True)
+def lo_up():
+    os.system("ip link set dev lo up")
+
 @pytest.fixture
 def project_path() -> Path:
     return Path(__file__).parent.parent
@@ -18,6 +22,7 @@ def server_dir(project_path: Path):
     server_dir = str(project_path.joinpath("server_dir"))
     os.system(f"mkdir {server_dir}")
     os.system(f"cp {str(project_path.joinpath('LICENSE'))} {server_dir}")
+    time.sleep(0.5)
     yield server_dir
     os.system(f"rm -rf {server_dir}")
 
@@ -31,9 +36,9 @@ def client_dir(project_path: Path):
 
 def test_run(executable, server_dir, client_dir):
     server = subprocess.Popen([executable, "-s", "--port", "12346"], cwd=server_dir)
-
-    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE"], cwd=client_dir)
     
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE"], cwd=client_dir)
+
     exitcode = client.wait(timeout=5)
 
     if not Path(client_dir).joinpath("LICENSE").exists():
@@ -41,6 +46,7 @@ def test_run(executable, server_dir, client_dir):
 
     input = Path(server_dir).joinpath("LICENSE").read_bytes()
     output = Path(client_dir).joinpath("LICENSE").read_bytes()
+
     if input != output:
         pytest.fail("File that Client received is not equal to original file")
 
