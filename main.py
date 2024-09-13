@@ -89,7 +89,7 @@ def main():
     else:
         logging_level = logging.WARNING
 
-    logging.basicConfig(level=logging.WARNING, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
+    logging.basicConfig(level=logging_level, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
         run_server(args.port, args.p, args.q)
