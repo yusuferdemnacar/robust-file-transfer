@@ -68,6 +68,13 @@ def main():
         help="specifies the probability of transitioning from the failure state back to the failure state (default: 0)",
     )
     parser.add_argument(
+        '--ipv6',
+        action='store',
+        type=bool,
+        default=False,
+        help="specifies if the program should use ipv6 (default: False)",
+    )
+    parser.add_argument(
         'file',
         type=str,
         nargs='*'
@@ -92,10 +99,10 @@ def main():
     logging.basicConfig(level=logging_level, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
-        run_server(args.port, args.p, args.q)
+        run_server(args.port, args.p, args.q, args.ipv6)
     else:
         start = time.time()
-        run_client(args.host, args.port, args.file, args.p, args.q)
+        run_client(args.host, args.port, args.file, args.p, args.q, args.ipv6)
         end = time.time()
         logging.info("Time taken: " + str(end - start) + " seconds")
         # check which files were saved
