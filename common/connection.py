@@ -265,7 +265,7 @@ class Connection:
                         self.increase_congestion_window()
                 self.handle_frame(frame)
             # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
-            if next((frame for frame in next_packet.frames if type(frame) != AckFrame), None): #TODO INTEGRATE
+            if next((frame for frame in next_packet.frames if type(frame) != AckFrame), None):
                 need_ACK = True
                 last_handled_packet_id = next_packet.header.packet_id
             self.next_recv_packet_id += 1
