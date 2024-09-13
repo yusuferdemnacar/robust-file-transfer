@@ -43,15 +43,15 @@ class Connection:
 
         # start out with 32 max-sized packets, usually the receive buffer for sockets under linux can hold that amount
         self.max_packet_size = 1500 - 40 - 8  # TODO do MTU discovery?
-        self.max_inflight_bytes = 10000
+        self.max_inflight_bytes = 1000
         self.is_slowstart = True
-        self.slowstart_threshold = None
+        self.slowstart_threshold = 10000
 
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
-        self.recieve_window = 1000
-        self.recieve_buffer: dict[int, Packet] = {}
+        self.receive_window = 1000
+        self.receive_buffer: dict[int, Packet] = {}
         self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
         self.last_ack_sent = None # this is the packet that the last sent
@@ -199,6 +199,7 @@ class Connection:
         if current_time > self.last_updated + self.connection_timeout:
             self.close()
         if len(self.inflight_packets) > 0:
+            self.decrease_congestion_window()
             logging.info((current_time > self.inflight_packets[0][0] + self.retransmit_timeout))
             logging.info(next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None))
             if (current_time > self.inflight_packets[0][0] + self.retransmit_timeout) and next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None) is not None:
@@ -229,33 +230,28 @@ class Connection:
         elif not packet.correctChecksum:
             logging.info("Packet dropped due to invalid checksum")
             return
-        
-        # TODO: increase the congestion window
-            if self.is_slowstart:
-                pass # TODO double
-            else:
-                pass # TODO add
+
         if packet.header.packet_id < self.next_recv_packet_id:
             logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
             self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
             return
-        elif packet.header.packet_id <= self.next_recv_packet_id + self.recieve_window:
-            if packet.header.packet_id in self.recieve_buffer:
+        elif packet.header.packet_id <= self.next_recv_packet_id + self.receive_window:
+            if packet.header.packet_id in self.receive_buffer:
                 logging.info(f"Recieved duplicate {packet.header.packet_id})")
             else:
-                self.recieve_buffer[packet.header.packet_id] = packet
+                self.receive_buffer[packet.header.packet_id] = packet
         else:
             # drop the packet since it's outside of recieve window.
-            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.recieve_window} but got packet_id {packet.header.packet_id})")
+            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.receive_window} but got packet_id {packet.header.packet_id})")
             return
 
         # TODO: detect increase/decrease of send window size.
-        if self.next_recv_packet_id not in self.recieve_buffer:
+        if self.next_recv_packet_id not in self.receive_buffer:
             return
 
         need_ACK = False
-        while self.next_recv_packet_id in self.recieve_buffer:
-            next_packet = self.recieve_buffer.pop(self.next_recv_packet_id)
+        while self.next_recv_packet_id in self.receive_buffer:
+            next_packet = self.receive_buffer.pop(self.next_recv_packet_id)
             logging.info(f"Handle packet {self.next_recv_packet_id}")
             for frame in next_packet.frames:
 
@@ -266,6 +262,7 @@ class Connection:
                         self.inflight_packets.remove(tp)
                         self.inflight_bytes -= len(tp[1].pack())
                         logging.info(f"Received ACK for packet_id {acked_packet_id}")
+                        self.increase_congestion_window()
                 self.handle_frame(frame)
             # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
             if next((frame for frame in next_packet.frames if type(frame) != AckFrame), None): #TODO INTEGRATE
@@ -330,6 +327,20 @@ class Connection:
                 self.frame_queue.append(frame)
                 logging.warning(
                     f"Scheduled unknown frame type {frame} for transmission")
+
+    def increase_congestion_window(self):
+        if self.is_slowstart:
+            self.max_inflight_bytes = self.max_inflight_bytes + self.max_packet_size
+            if self.max_inflight_bytes > self.slowstart_threshold:
+                self.is_slowstart = False
+            logging.info(f"Congesiton window increased quickly to {self.max_inflight_bytes}")
+        else:
+            self.max_inflight_bytes = self.max_inflight_bytes + (self.max_packet_size * (self.max_packet_size / self.max_inflight_bytes))
+            logging.info(f"Congesiton window increased normally to {self.max_inflight_bytes}")
+
+    def decrease_congestion_window(self):
+        self.max_inflight_bytes = max(self.max_inflight_bytes / 2, 1000)
+        logging.info(f"Congesiton window decreased to {self.max_inflight_bytes}")
 
     def close(self):
         self.flush()
