@@ -64,25 +64,8 @@ class ServerConnection(Connection):
                     return
 
             # create a new stream if everything is fine
-            stream = Stream(frame.header.stream_id, frame.payload.data)
+            stream = Stream(frame.header.stream_id, frame.payload.data, "w")
             self.streams[frame.header.stream_id] = stream
-
-            # if the frame has no offset and length, send the entire file
-            # TODO: check if this is the correct way to handle this
-            if frame.header.length == 0:
-                for i in range(frame.header.offset, stream.get_file_size(), 128):
-                    stream.file.seek(i)
-                    data = stream.file.read(128)
-                    self.queue_frame(DataFrame(stream.stream_id, i, data))
-                    # logging.info(f"{i / 128} of {stream.get_file_size() / 128} frames queued ({len(data)} bytes)")
-            else:
-                for i in range(frame.header.offset, frame.header.offset + frame.header.length, 128):
-                    stream.file.seek(i)
-                    data = stream.file.read(128)
-                    self.queue_frame(DataFrame(stream.stream_id, i, data))
-            # send an empty DataFrame to signal the end of the stream
-            self.queue_frame(DataFrame(stream.stream_id, i if frame.header.length != 0 else frame.header.offset, b""))
-            logging.info("finished sending file")
             return
 
         elif isinstance(frame, ChecksumFrame):

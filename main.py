@@ -104,7 +104,7 @@ def main():
         start = time.time()
         run_client(args.host, args.port, args.file, args.p, args.q, args.ipv6)
         end = time.time()
-        logging.info("Time taken: " + str(end - start) + " seconds")
+        print("Time taken: " + str(end - start) + " seconds")
         # check which files were saved
         successful_files = []
         for file in args.file:
@@ -113,10 +113,10 @@ def main():
         if len(successful_files) == 0:
             logging.error("No files were saved")
         else:
-            logging.info("Files saved:")
+            print("Files saved:")
             file_size = sum([pathlib.Path(successful_file).stat().st_size for successful_file in successful_files])
-            logging.info(f"Total file size: {file_size}")
-            logging.info(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
+            print(f"Total file size: {file_size}")
+            print(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
 
 if __name__ == "__main__":
     main()
