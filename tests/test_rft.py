@@ -105,9 +105,9 @@ def test_larger_file(executable, project_path, client_dir):
     client.kill()
 
 def test_send_file_with_loss(executable, server_dir, client_dir):
-    server = subprocess.Popen([executable, "-s", "--port", "12348", "--verbose", "-p", "0.1"], cwd=server_dir)
+    server = subprocess.Popen([executable, "-s", "--port", "12348", "--verbose", "-p", "0.5", "-q", "0.5"], cwd=server_dir)
     
-    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12348", "LICENSE", "--verbose", "-p", "0.1"], cwd=client_dir)
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12348", "LICENSE", "--verbose", "-p", "0.5", "-q", "0.5"], cwd=client_dir)
 
     exitcode = client.wait(timeout=100)
 
