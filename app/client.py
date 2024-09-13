@@ -66,7 +66,7 @@ class ClientConnection(Connection):
                 logging.info("Checksums match")
             else:
                 logging.error("Checksums do not match, deleting file")
-                self.streams[frame.header.stream_id].remove_file()
+                # self.streams[frame.header.stream_id].remove_file()
 
             del self.streams[frame.header.stream_id]
 
@@ -104,7 +104,7 @@ class ClientConnection(Connection):
     def command_read(self, path: str, offset=0, length=0, checkChecksum=False, checksum=0):
         # TODO continue read from partially completed file (maybe use "a" mode instead?)
         stream_id = self.next_stream_id()
-        self.streams[stream_id] = Stream.open(stream_id, path)
+        self.streams[stream_id] = Stream.open(stream_id, path, "r")
         flags = 0 if not checkChecksum else 0b00000001
         self.queue_frame(ReadFrame(stream_id, flags,
                          offset, length, checksum, path))

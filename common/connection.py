@@ -8,7 +8,8 @@ from collections import deque
 
 import time
 import logging
-import random
+
+last_data_frame_offset = 0
 
 
 class Connection:
@@ -118,25 +119,28 @@ class Connection:
 
             while True:
                 if len(self.frame_queue) == 0:
-                    # no more frames to add
-                    break
+                    generated_frame = self.generate_frame()
+                    if generated_frame is not None:
+                        self.queue_frame(generated_frame)
+                    else:
+                        break
 
                 # decide if we can package one more frame:
                 predicted_packet_size = global_header_size + \
-                    to_be_packaged_bytes + len(self.frame_queue[0])
+                    to_be_packaged_bytes + len(self.frame_queue[-1])
 
                 if predicted_packet_size > self.max_packet_size:
                     # this should only happen if the to_be_packaged_frames list is not empty, otherwise...
                     if len(to_be_packaged_frames) == 0:
                         logging.error(
-                            f"The frame {self.frame_queue[0]} cannot be sent without exceeding the maximum packet size!")
+                            f"The frame {self.frame_queue[-1]} cannot be sent without exceeding the maximum packet size!")
                         # since we can do nothing here, the ill-sized frame is now clogging the queue
                     break
                 elif to_be_flushed_bytes + predicted_packet_size > max_flush_bytes:
                     # let's not trust our own implementation and log an error in case the send window size is too small.
                     if len(to_be_packaged_frames) == 0 and predicted_packet_size > self.max_inflight_bytes:
                         logging.error(
-                            f"The frame {self.frame_queue[0]} cannot be sent without exceeding the send window!")
+                            f"The frame {self.frame_queue[-1]} cannot be sent without exceeding the send window!")
                         # since we can do nothing here, the ill-sized frame/the ill-sized send window is now clogging the queue
                     break
                 else:
@@ -176,6 +180,15 @@ class Connection:
             self.connection_manager.sendto(
                 data, (self.remote_host, self.remote_port)
             )
+
+    def generate_frame(self):
+        # this function is used by the ConnectionHandler to get the next frame to be sent
+        # it is a simple pop operation on the frame queue
+        for stream in self.streams.values():
+            frame = stream.get_next_data_frame()
+            if frame is not None:
+                logging.info(f"pop_frame({type(frame)})")
+                return frame
 
     def current_timeout(self, current_time) -> float:
         """
@@ -232,7 +245,7 @@ class Connection:
             return
 
         if packet.header.packet_id < self.next_recv_packet_id:
-            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
+            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK for {self.last_ack_sent.frames[0].header.packet_id}")
             self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
             return
         elif packet.header.packet_id <= self.next_recv_packet_id + self.receive_window:
@@ -251,6 +264,7 @@ class Connection:
 
         need_ACK = False
         while self.next_recv_packet_id in self.receive_buffer:
+            print(self.next_recv_packet_id)
             next_packet = self.receive_buffer.pop(self.next_recv_packet_id)
             logging.info(f"Handle packet {self.next_recv_packet_id}")
             for frame in next_packet.frames:
