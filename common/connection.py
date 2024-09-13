@@ -25,7 +25,7 @@ class Connection:
         self.remote_port = remote_port
         self.connection_id = connection_id
         self.streams: dict[int, common.Stream] = {}
-        self.retransmit_timeout = 5  # seconds
+        self.retransmit_timeout = 1  # seconds
         self.connection_timeout = 5 * 60  # seconds
         self.last_updated = time.time()
 
