@@ -97,10 +97,19 @@ def main():
         start = time.time()
         run_client(args.host, args.port, args.file, args.p, args.q)
         end = time.time()
-        print(f"Time taken: {end - start}")
-        file_size = sum([pathlib.Path(file).stat().st_size for file in args.file])
-        print(f"Total file size: {file_size}")
-        print(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
+        logging.info("Time taken: " + str(end - start) + " seconds")
+        # check which files were saved
+        successful_files = []
+        for file in args.file:
+            if pathlib.Path(file).exists():
+                successful_files.append(file)
+        if len(successful_files) == 0:
+            logging.error("No files were saved")
+        else:
+            logging.info("Files saved:")
+            file_size = sum([pathlib.Path(successful_file).stat().st_size for successful_file in successful_files])
+            logging.info(f"Total file size: {file_size}")
+            logging.info(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
 
 if __name__ == "__main__":
     main()
