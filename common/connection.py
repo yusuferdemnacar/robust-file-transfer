@@ -194,17 +194,12 @@ class Connection:
             return connection_timeout
 
     def timed_out(self, current_time):
-        logging.info(f"main timed_out() called")
         if current_time > self.last_updated + self.connection_timeout:
-            logging.info(f"branch 1")
             self.close()
-        logging.info(f"exit timed_out()")
         if len(self.inflight_packets) > 0:
-            logging.info(f"branch 3")
             logging.info((current_time > self.inflight_packets[0][0] + self.retransmit_timeout))
             logging.info(next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None))
             if (current_time > self.inflight_packets[0][0] + self.retransmit_timeout) and next((frame for frame in self.inflight_packets[0][1].frames if type(frame) != AckFrame), None) is not None:
-                logging.info(f"branch 4")
                 self.retransmit_timeout_triggered = True  # in that case, flush() needs to do retransmissions
                 
 

@@ -1,5 +1,5 @@
 import pathlib
-import zlib
+import hashlib
 import json
 
 
@@ -46,12 +46,12 @@ class Stream:
     def get_file_size(self) -> int:
         return pathlib.Path(self.path).stat().st_size
 
-    def get_file_checksum(self) -> int:
-        checksum = 0
+    def get_file_checksum(self) -> str:
+        sha256_hash = hashlib.sha256()
         with open(self.path, "rb") as file:
             while chunk := file.read(4096):
-                checksum = zlib.crc32(chunk, checksum)
-        return checksum
+                sha256_hash.update(chunk)
+        return sha256_hash.hexdigest()
 
     def get_file_name(self) -> str:
         return pathlib.Path(self.path).name

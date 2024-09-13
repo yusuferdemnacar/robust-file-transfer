@@ -50,7 +50,9 @@ class ClientConnection(Connection):
             logging.info(
                 "File: \"" + self.streams[frame.header.stream_id].path + "\" has been checksummed with value: " + str(frame.payload.data))
             local_checksum = self.streams[frame.header.stream_id].get_file_checksum()
-            remote_checksum = int.from_bytes(frame.payload.data, "little")
+            remote_checksum = frame.payload.data.hex()
+            logging.info("Local checksum: " + str(local_checksum))
+            logging.info("Remote checksum: " + str(remote_checksum))
             # Immediately close the stream after checksum is received
             self.streams[frame.header.stream_id].close()
             logging.info(
@@ -84,8 +86,7 @@ class ClientConnection(Connection):
         else:
             logging.error(
                 "Recieved unknown frame with type \"" + str(frame.type) + "\"")
-            self.queue_frame(ErrorFrame(
-                frame.header.stream_id, "not implemented yet"))
+            self.queue_frame(ErrorFrame(0, "not implemented yet"))
 
     def command_read(self, path: str, offset=0, length=0, checkChecksum=False, checksum=0):
         # TODO continue read from partially completed file (maybe use "a" mode instead?)
@@ -123,8 +124,8 @@ class ClientConnection(Connection):
         self.update(packet, (host, port))
 
 
-def run_client(host, port, files, p = 0, q = 1):
-    connection_manager = ConnectionManager(0, p, q)
+def run_client(host, port, files, p = 0, q = 1, ipv6 = False):
+    connection_manager = ConnectionManager(0, p, q, ipv6)
     connection = ClientConnection(connection_manager, host, port, files)
     logging.info(
         f"client socket bound to {connection_manager.local_address} on port {connection_manager.local_port}")

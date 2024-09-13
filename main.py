@@ -35,6 +35,12 @@ def main():
         help='creates a rft server instead of a client'
     )
     parser.add_argument(
+        '-v',
+        '--verbose',
+        action='store_true',
+        help='increases the verbosity of the output'
+    )
+    parser.add_argument(
         '--host',
         action='store',
         type=str,
@@ -62,6 +68,13 @@ def main():
         help="specifies the probability of transitioning from the failure state back to the failure state (default: 0)",
     )
     parser.add_argument(
+        '--ipv6',
+        action='store',
+        type=bool,
+        default=False,
+        help="specifies if the program should use ipv6 (default: False)",
+    )
+    parser.add_argument(
         'file',
         type=str,
         nargs='*'
@@ -78,18 +91,32 @@ def main():
     if not 0 <= args.p <= 1 or not 0 <= args.q <= 1:
         sys.exit("p and q probabilities must be between 0 and 1")
 
-    logging.basicConfig(level=logging.ERROR, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
+    if args.verbose:
+        logging_level = logging.INFO
+    else:
+        logging_level = logging.WARNING
+
+    logging.basicConfig(level=logging_level, format="[ %(levelname)s ] %(filename)s:%(funcName)s (%(lineno)d):\t\t %(message)s")
 
     if args.server:
-        run_server(args.port, args.p, args.q)
+        run_server(args.port, args.p, args.q, args.ipv6)
     else:
         start = time.time()
-        run_client(args.host, args.port, args.file, args.p, args.q)
+        run_client(args.host, args.port, args.file, args.p, args.q, args.ipv6)
         end = time.time()
-        print(f"Time taken: {end - start}")
-        file_size = sum([pathlib.Path(file).stat().st_size for file in args.file])
-        print(f"Total file size: {file_size}")
-        print(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
+        logging.info("Time taken: " + str(end - start) + " seconds")
+        # check which files were saved
+        successful_files = []
+        for file in args.file:
+            if pathlib.Path(file).exists():
+                successful_files.append(file)
+        if len(successful_files) == 0:
+            logging.error("No files were saved")
+        else:
+            logging.info("Files saved:")
+            file_size = sum([pathlib.Path(successful_file).stat().st_size for successful_file in successful_files])
+            logging.info(f"Total file size: {file_size}")
+            logging.info(f"Throughput: {file_size / ((end - start)*1e6)} MBs/sec")
 
 if __name__ == "__main__":
     main()

@@ -107,14 +107,16 @@ class ConnectionTerminatedEvent:
 
 class ConnectionManager:
 
-    def __init__(self, local_port=0, p = 0, q = 1) -> None:
-        self.socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-
-        # disabling ipv6only maps any ipv4 addresses to an ipv6 address:
-        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        self.socket.bind(("", local_port))
-
-        self.local_address, self.local_port, _, _ = self.socket.getsockname()
+    def __init__(self, local_port=0, p = 0, q = 1, ipv6 = False):
+        if ipv6:
+            self.socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            self.socket.bind(("", local_port))
+            self.local_address, self.local_port, _, _ = self.socket.getsockname()
+        else:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.socket.bind(("", local_port))
+            self.local_address, self.local_port = self.socket.getsockname()
         logging.debug(
             f"local address is {self.local_address} at port {self.local_port}")
 
