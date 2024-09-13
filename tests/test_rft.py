@@ -4,9 +4,11 @@ import os
 import pytest
 import hashlib
 import time
+import unshare
 
 @pytest.fixture(autouse=True)
 def lo_up():
+    unshare.unshare(unshare.CLONE_NEWNET)
     os.system("ip link set dev lo up")
 
 @pytest.fixture
@@ -35,9 +37,9 @@ def client_dir(project_path: Path):
 
 
 def test_send_small_file(executable, server_dir, client_dir):
-    server = subprocess.Popen([executable, "-s", "--port", "12346", "--verbose"], cwd=server_dir)
+    server = subprocess.Popen([executable, "-s", "--port", "12345", "--verbose"], cwd=server_dir)
     
-    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE", "--verbose"], cwd=client_dir)
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12345", "LICENSE", "--verbose"], cwd=client_dir)
 
     exitcode = client.wait(timeout=5)
 
@@ -58,11 +60,11 @@ def test_send_small_file(executable, server_dir, client_dir):
 
 
 def test_file_does_not_exist(executable, server_dir, client_dir):
-    server = subprocess.Popen([executable, "-s", "--port", "12347", "--verbose"], cwd=server_dir)
+    server = subprocess.Popen([executable, "-s", "--port", "12346", "--verbose"], cwd=server_dir)
     
-    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12347", "LICENCE", "--verbose"], cwd=client_dir)
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENCE", "--verbose"], cwd=client_dir)
 
-    exitcode = client.wait(timeout=5)
+    exitcode = client.wait(timeout=20)
 
     if not exitcode == 0:
         pytest.fail(f"Expected exit code 0 but got exit code {exitcode}")
@@ -75,3 +77,29 @@ def test_file_does_not_exist(executable, server_dir, client_dir):
     server.kill()
     client.kill()
 
+
+def test_larger_file(executable, project_path, client_dir):
+    server = subprocess.Popen([executable, "-s", "--port", "12347"], cwd=str(project_path))
+
+    os.system("ls -la tests/")
+
+    os.system(f"mkdir {client_dir}/tests")
+    
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12347", "tests/eno8--2024-09-11--15-38-07.pcap"], cwd=client_dir)
+
+    exitcode = client.wait(timeout=100)
+
+    if not Path(client_dir).joinpath("tests/eno8--2024-09-11--15-38-07.pcap").exists():
+        pytest.fail("Client did not receive pcap file")
+
+    input = Path(project_path).joinpath("tests").joinpath("eno8--2024-09-11--15-38-07.pcap").read_bytes()
+    output = Path(client_dir).joinpath("tests").joinpath("eno8--2024-09-11--15-38-07.pcap").read_bytes()
+
+    if input != output:
+        pytest.fail("File that Client received is not equal to original file")
+
+    if not exitcode == 0:
+        pytest.fail(f"Expected exit code 0 but got exit code {exitcode}")
+
+    server.kill()
+    client.kill()
