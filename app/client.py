@@ -124,8 +124,8 @@ class ClientConnection(Connection):
         self.update(packet, (host, port))
 
 
-def run_client(host, port, files, p = 0, q = 1):
-    connection_manager = ConnectionManager(0, p, q)
+def run_client(host, port, files, p = 0, q = 1, ipv6 = False):
+    connection_manager = ConnectionManager(0, p, q, ipv6)
     connection = ClientConnection(connection_manager, host, port, files)
     logging.info(
         f"client socket bound to {connection_manager.local_address} on port {connection_manager.local_port}")
