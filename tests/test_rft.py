@@ -34,7 +34,7 @@ def client_dir(project_path: Path):
     os.system(f"rm -rf {client_dir}")
 
 
-def test_run(executable, server_dir, client_dir):
+def test_send_small_file(executable, server_dir, client_dir):
     server = subprocess.Popen([executable, "-s", "--port", "12346", "--verbose"], cwd=server_dir)
     
     client = subprocess.Popen([executable, "--host", "localhost", "--port", "12346", "LICENSE", "--verbose"], cwd=client_dir)
@@ -55,3 +55,23 @@ def test_run(executable, server_dir, client_dir):
 
     server.kill()
     client.kill()
+
+
+def test_file_does_not_exist(executable, server_dir, client_dir):
+    server = subprocess.Popen([executable, "-s", "--port", "12347", "--verbose"], cwd=server_dir)
+    
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12347", "LICENCE", "--verbose"], cwd=client_dir)
+
+    exitcode = client.wait(timeout=5)
+
+    if not exitcode == 0:
+        pytest.fail(f"Expected exit code 0 but got exit code {exitcode}")
+
+    if Path(client_dir).joinpath("LICENCE").exists():
+        output = Path(client_dir).joinpath("LICENCE").read_bytes()
+        if len(output) > 0:
+            pytest.fail("Client created a LICENCE file even though it should not exist.")
+
+    server.kill()
+    client.kill()
+
