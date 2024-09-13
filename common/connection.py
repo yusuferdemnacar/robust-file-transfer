@@ -43,13 +43,15 @@ class Connection:
 
         # start out with 32 max-sized packets, usually the receive buffer for sockets under linux can hold that amount
         self.max_packet_size = 1500 - 40 - 8  # TODO do MTU discovery?
-        self.max_inflight_bytes = self.max_packet_size
+        self.max_inflight_bytes = 10000
         self.is_slowstart = True
         self.slowstart_threshold = None
 
         # send windowing
         self.last_sent_packet_id = 0
         self.next_recv_packet_id = 1  # will be initialized upon receiving the first packet
+        self.recieve_window = 1000
+        self.recieve_buffer: dict[int, Packet] = {}
         self.inflight_packets: deque[tuple[float, Packet]] = deque()  # packet cache for retransmissions, queue is ordered by timestamps
         self.inflight_bytes = 0   # should always match with packets in self.inflight_packets !
         self.last_ack_sent = None # this is the packet that the last sent
@@ -227,39 +229,51 @@ class Connection:
         elif not packet.correctChecksum:
             logging.info("Packet dropped due to invalid checksum")
             return
-        if packet.header.packet_id < self.next_recv_packet_id:
-            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
-            self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
-            return
-        elif packet.header.packet_id == self.next_recv_packet_id:
-            self.next_recv_packet_id += 1
-
-            # TODO: increase the congestion window here
+        
+        # TODO: increase the congestion window
             if self.is_slowstart:
                 pass # TODO double
             else:
                 pass # TODO add
-
-            # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
-            if next((frame for frame in packet.frames if type(frame) != AckFrame), None):
-                self.queue_frame(AckFrame(packet.header.packet_id), transmit_first=True)
+        if packet.header.packet_id < self.next_recv_packet_id:
+            logging.info(f"Expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id}, retransmitting ACK")
+            self.connection_manager.sendto(self.last_ack_sent.pack(), (self.remote_host, self.remote_port))
+            return
+        elif packet.header.packet_id <= self.next_recv_packet_id + self.recieve_window:
+            if packet.header.packet_id in self.recieve_buffer:
+                logging.info(f"Recieved duplicate {packet.header.packet_id})")
+            else:
+                self.recieve_buffer[packet.header.packet_id] = packet
         else:
-            # drop the packet since we don't allow reordered packets for now.
-            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id} but got packet_id {packet.header.packet_id})")
+            # drop the packet since it's outside of recieve window.
+            logging.info(f"dropping frame (expected packet_id {self.next_recv_packet_id + self.recieve_window} but got packet_id {packet.header.packet_id})")
             return
 
         # TODO: detect increase/decrease of send window size.
+        if self.next_recv_packet_id not in self.recieve_buffer:
+            return
 
-        for frame in packet.frames:
-            if isinstance(frame, AckFrame):
-                acked_packet_id = frame.header.packet_id
-                acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id <= acked_packet_id]
-                for tp in acked_packets:
-                    self.inflight_packets.remove(tp)
-                    self.inflight_bytes -= len(tp[1].pack())
-                    logging.info(f"Received ACK for packet_id {acked_packet_id}")
+        need_ACK = False
+        while self.next_recv_packet_id in self.recieve_buffer:
+            next_packet = self.recieve_buffer.pop(self.next_recv_packet_id)
+            logging.info(f"Handle packet {self.next_recv_packet_id}")
+            for frame in next_packet.frames:
 
-            self.handle_frame(frame)
+                if isinstance(frame, AckFrame):
+                    acked_packet_id = frame.header.packet_id
+                    acked_packets = [tp for tp in self.inflight_packets if tp[1].header.packet_id <= acked_packet_id]
+                    for tp in acked_packets:
+                        self.inflight_packets.remove(tp)
+                        self.inflight_bytes -= len(tp[1].pack())
+                        logging.info(f"Received ACK for packet_id {acked_packet_id}")
+                self.handle_frame(frame)
+            # if the packet contained at least one frame other than AckFrame or an ExitFrame send a response
+            if next((frame for frame in next_packet.frames if type(frame) != AckFrame), None): #TODO INTEGRATE
+                need_ACK = True
+                last_handled_packet_id = next_packet.header.packet_id
+            self.next_recv_packet_id += 1
+        if need_ACK:
+            self.queue_frame(AckFrame(last_handled_packet_id), transmit_first=True)
 
     def queue_frame(self, frame: Frame, transmit_first=None):
         # server/client or connection/stream (don't know yet) can use this function
