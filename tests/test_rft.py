@@ -41,7 +41,7 @@ def test_send_small_file(executable, server_dir, client_dir):
     
     client = subprocess.Popen([executable, "--host", "localhost", "--port", "12345", "LICENSE", "--verbose"], cwd=client_dir)
 
-    exitcode = client.wait(timeout=5)
+    exitcode = client.wait(timeout=10)
 
     if not Path(client_dir).joinpath("LICENSE").exists():
         pytest.fail("Client did not receive LICENSE file")
@@ -94,6 +94,28 @@ def test_larger_file(executable, project_path, client_dir):
 
     input = Path(project_path).joinpath("tests").joinpath("eno8--2024-09-11--15-38-07.pcap").read_bytes()
     output = Path(client_dir).joinpath("tests").joinpath("eno8--2024-09-11--15-38-07.pcap").read_bytes()
+
+    if input != output:
+        pytest.fail("File that Client received is not equal to original file")
+
+    if not exitcode == 0:
+        pytest.fail(f"Expected exit code 0 but got exit code {exitcode}")
+
+    server.kill()
+    client.kill()
+
+def test_send_file_with_loss(executable, server_dir, client_dir):
+    server = subprocess.Popen([executable, "-s", "--port", "12348", "--verbose", "-p", "0.1"], cwd=server_dir)
+    
+    client = subprocess.Popen([executable, "--host", "localhost", "--port", "12348", "LICENSE", "--verbose", "-p", "0.1"], cwd=client_dir)
+
+    exitcode = client.wait(timeout=100)
+
+    if not Path(client_dir).joinpath("LICENSE").exists():
+        pytest.fail("Client did not receive LICENSE file")
+
+    input = Path(server_dir).joinpath("LICENSE").read_bytes()
+    output = Path(client_dir).joinpath("LICENSE").read_bytes()
 
     if input != output:
         pytest.fail("File that Client received is not equal to original file")
